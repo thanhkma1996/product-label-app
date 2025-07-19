@@ -3,7 +3,7 @@
 client_id = "d090f486b6ac47969dca38d6140e1e96"
 name = "DO Product Label"
 handle = "do-product-label"
-application_url = "https://gel-darwin-phpbb-competing.trycloudflare.com"
+application_url = "https://mail-coated-lat-floppy.trycloudflare.com"
 embedded = true
 
 [webhooks]
@@ -22,7 +22,7 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://gel-darwin-phpbb-competing.trycloudflare.com/auth/callback", "https://gel-darwin-phpbb-competing.trycloudflare.com/auth/shopify/callback", "https://gel-darwin-phpbb-competing.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://mail-coated-lat-floppy.trycloudflare.com/auth/callback", "https://mail-coated-lat-floppy.trycloudflare.com/auth/shopify/callback", "https://mail-coated-lat-floppy.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
