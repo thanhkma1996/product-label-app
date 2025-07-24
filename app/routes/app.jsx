@@ -23,7 +23,8 @@ export default function App() {
           Home
         </Link>
         <Link to="/app/additional">Additional page</Link>
-        <Link to="/labels">Config labels</Link>
+        <Link to="/app/labels">Config labels</Link>
+        <Link to="/app/labels/list">All label</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>
