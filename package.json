@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@graphql-tools/schema": "^10.0.23",
-    "@prisma/client": "^6.2.1",
+    "@prisma/client": "^6.12.0",
     "@remix-run/dev": "^2.16.1",
     "@remix-run/fs-routes": "^2.16.1",
     "@remix-run/node": "^2.16.1",
@@ -37,7 +37,7 @@
     "graphql": "^16.11.0",
     "graphql-yoga": "^5.15.1",
     "isbot": "^5.1.0",
-    "prisma": "^6.2.1",
+    "prisma": "^6.12.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "vite-tsconfig-paths": "^5.0.1"

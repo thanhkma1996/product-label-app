@@ -1,4 +1,4 @@
-import { useLoaderData, useActionData, useNavigation } from "@remix-run/react";
+import { useLoaderData, useActionData, useNavigation, useFetcher } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
 import {
   Page, Thumbnail, Layout, Button, TextField, EmptyState, TextContainer, Banner, Modal, ColorPicker, Card, Select, Tabs, ChoiceList, ResourceList
@@ -6,14 +6,16 @@ import {
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useState, useCallback, useEffect } from "react";
 import { prisma } from '../prisma.server';
+import { redirect } from "@remix-run/node";
 
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
-  const shop = session?.shop || "Cửa hàng Shopify";
-  const url = new URL(request.url);
-  const after = url.searchParams.get("after");
-  const search = url.searchParams.get("search") || "";
-  const query = `#graphql
+  try {
+    const { admin, session } = await authenticate.admin(request);
+    const shop = session?.shop || "Cửa hàng Shopify";
+    const url = new URL(request.url);
+    const after = url.searchParams.get("after");
+    const search = url.searchParams.get("search") || "";
+    const query = `#graphql
     query getProducts($first: Int!, $after: String, $query: String) {
       products(first: $first, after: $after, query: $query) {
         edges {
@@ -31,21 +33,53 @@ export const loader = async ({ request }) => {
       }
     }
   `;
-  const variables = {
-    first: 12,
-    after,
-    query: search ? `title:*${search}*` : undefined,
-  };
-  const response = await admin.graphql(query, { variables });
-  const data = await response.json();
-  const products = data.data.products.edges.map((edge) => ({ ...edge.node, cursor: edge.cursor }));
-  const { hasNextPage, endCursor } = data.data.products.pageInfo;
-  return { products, shop, hasNextPage, endCursor };
+    const variables = {
+      first: 12,
+      after,
+      query: search ? `title:*${search}*` : undefined,
+    };
+    const response = await admin.graphql(query, { variables });
+    const data = await response.json();
+    const products = data.data.products.edges.map((edge) => ({ ...edge.node, cursor: edge.cursor }));
+    const { hasNextPage, endCursor } = data.data.products.pageInfo;
+    // Lấy tất cả label từ Prisma
+    const labels = await prisma.label.findMany({ orderBy: { createdAt: 'desc' } });
+    return { products, shop, hasNextPage, endCursor, labels };
+  } catch (error) {
+    // Nếu lỗi do thiếu shop domain/session, redirect về trang login
+    return redirect(`/auth/login`);
+  }
 };
 
 export const action = async ({ request }) => {
   try {
     const formData = await request.formData();
+    const actionType = formData.get('_action');
+    if (actionType === 'delete') {
+      const id = formData.get('id');
+      await prisma.label.delete({ where: { id } });
+      return { success: true, deleted: id };
+    }
+    if (actionType === 'edit') {
+      // Chỉnh sửa label
+      const id = formData.get('id');
+      const text = formData.get('text');
+      const background = formData.get('background');
+      const position = formData.get('position') || 'bottom-center';
+      const condition = formData.get('condition');
+      const productIds = formData.getAll('productIds');
+      const updated = await prisma.label.update({
+        where: { id },
+        data: {
+          text,
+          background,
+          position,
+          condition,
+          productIds: condition === 'specific' ? productIds : [],
+        },
+      });
+      return { success: true, updated };
+    }
     const text = formData.get('text');
     const background = formData.get('background');
     const position = formData.get('position') || 'bottom-center';
@@ -100,13 +134,8 @@ export default function LabelsProductList() {
   const loaderData = useLoaderData();
   const actionData = useActionData();
   const navigation = useNavigation();
+  const fetcher = useFetcher();
   const [products, setProducts] = useState(loaderData.products);
-  const [hasNextPage, setHasNextPage] = useState(loaderData.hasNextPage);
-  const [endCursor, setEndCursor] = useState(loaderData.endCursor);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
   const [modalActive, setModalActive] = useState(false);
   const [labelText, setLabelText] = useState("");
   const [labelBg, setLabelBg] = useState({ red: 0, green: 128, blue: 96 });
@@ -115,9 +144,11 @@ export default function LabelsProductList() {
   const [activeTab, setActiveTab] = useState(0);
   const [productCondition, setProductCondition] = useState(["all"]); // ["all"] or ["specific"]
   const [selectedProductIds, setSelectedProductIds] = useState([]);
+  const [editLabel, setEditLabel] = useState(null); // label đang chỉnh sửa
 
   const shop = loaderData.shop;
   const isSubmitting = navigation.state === "submitting";
+  const labels = loaderData.labels || [];
 
   // Show success/error message
   useEffect(() => {
@@ -129,69 +160,29 @@ export default function LabelsProductList() {
       setLabelPosition("bottom-center");
       setProductCondition(["all"]);
       setSelectedProductIds([]);
+      setEditLabel(null); // Reset edit state on success
     }
   }, [actionData]);
 
-  const handleLoadMore = async () => {
-    setLoadingMore(true);
-    const params = new URLSearchParams();
-    if (endCursor) params.set("after", endCursor);
-    if (searchValue) params.set("search", searchValue);
-    const res = await fetch(`/labels?${params.toString()}`);
-    const data = await res.json();
-    setProducts((prev) => [...prev, ...data.products]);
-    setHasNextPage(data.hasNextPage);
-    setEndCursor(data.endCursor);
-    setLoadingMore(false);
-  };
-
-  const handleSearchChange = useCallback((value) => {
-    setSearchValue(value);
-  }, []);
-
-  const handleSearch = async () => {
-    setSearching(true);
-    const params = new URLSearchParams();
-    if (searchValue) params.set("search", searchValue);
-    const res = await fetch(`/labels?${params.toString()}`);
-    const data = await res.json();
-    setProducts(data.products);
-    setHasNextPage(data.hasNextPage);
-    setEndCursor(data.endCursor);
-    setSearching(false);
-  };
-
-  const handleSelectProduct = (product) => {
-    setSelectedProduct(product);
-  };
-
-  const handleResetSelection = () => {
-    setSelectedProduct(null);
-  };
-
-  // Modal logic
-  const openCreateLabelModal = () => {
-    setLabelText("");
-    setLabelBg({ red: 0, green: 128, blue: 96 });
-    setLabelHex("#008060");
-    setLabelPosition("bottom-center");
-    setActiveTab(0);
-    setProductCondition(["all"]);
-    setSelectedProductIds([]);
+  // Khi submit chỉnh sửa label
+  const handleEditLabel = (label) => {
+    setEditLabel(label);
+    setLabelText(label.text);
+    setLabelBg(hexToRgb(label.background));
+    setLabelHex(label.background);
+    setLabelPosition(label.position);
+    setProductCondition([label.condition]);
+    setSelectedProductIds(Array.isArray(label.productIds) ? label.productIds : []);
     setModalActive(true);
   };
-
-  const closeCreateLabelModal = () => {
-    setModalActive(false);
-    setLabelText("");
-    setLabelBg({ red: 0, green: 128, blue: 96 });
-    setLabelHex("#008060");
-    setLabelPosition("bottom-center");
-    setActiveTab(0);
-    setProductCondition(["all"]);
-    setSelectedProductIds([]);
+  // Khi submit xóa label
+  const handleDeleteLabel = (id) => {
+    const formData = new FormData();
+    formData.append('_action', 'delete');
+    formData.append('id', id);
+    fetcher.submit(formData, { method: 'post' });
   };
-
+  // Khi lưu label (tạo hoặc chỉnh sửa)
   const handleSaveLabel = async () => {
     if (!labelText.trim()) {
       return;
@@ -205,6 +196,10 @@ export default function LabelsProductList() {
     } else {
       formData.append('condition', 'specific');
       selectedProductIds.forEach(id => formData.append('productIds', id));
+    }
+    if (editLabel) {
+      formData.append('_action', 'edit');
+      formData.append('id', editLabel.id);
     }
     // Submit form to action
     const form = document.createElement('form');
@@ -221,10 +216,45 @@ export default function LabelsProductList() {
     form.submit();
     document.body.removeChild(form);
   };
+  // Reset edit state khi đóng modal
+  const closeCreateLabelModal = () => {
+    setModalActive(false);
+    setLabelText("");
+    setLabelBg({ red: 0, green: 128, blue: 96 });
+    setLabelHex("#008060");
+    setLabelPosition("bottom-center");
+    setActiveTab(0);
+    setProductCondition(["all"]);
+    setSelectedProductIds([]);
+    setEditLabel(null);
+  };
+  // Modal logic
+  const openCreateLabelModal = () => {
+    setEditLabel(null); // Đảm bảo là tạo mới, không phải edit
+    setLabelText("");
+    setLabelBg({ red: 0, green: 128, blue: 96 });
+    setLabelHex("#008060");
+    setLabelPosition("bottom-center");
+    setActiveTab(0);
+    setProductCondition(["all"]);
+    setSelectedProductIds([]);
+    setModalActive(true);
+  };
+  // Helper: hex to rgb
+  function hexToRgb(hex) {
+    let c = hex.replace(/^#/, '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    const num = parseInt(c, 16);
+    return {
+      red: (num >> 16) & 255,
+      green: (num >> 8) & 255,
+      blue: num & 255,
+    };
+  }
 
   return (
     <Page>
-      <TitleBar title="Quản lý Label sản phẩm" />
+      <TitleBar title="Product Labels" />
       <Layout>
         <Layout.Section>
           <TextContainer>
@@ -233,60 +263,47 @@ export default function LabelsProductList() {
           <div style={{ marginBottom: 24 }}>
             <Button primary onClick={openCreateLabelModal}>Tạo label</Button>
           </div>
-          {/* Search */}
-          <div style={{ maxWidth: 400, marginBottom: 24 }}>
-            <TextField
-              label="Tìm kiếm sản phẩm"
-              value={searchValue}
-              onChange={handleSearchChange}
-              onBlur={handleSearch}
-              onEnterPressed={handleSearch}
-              autoComplete="off"
-              placeholder="Nhập tên sản phẩm..."
-              connectedRight={<Button onClick={handleSearch} loading={searching}>Tìm</Button>}
-            />
+          {/* Danh sách tất cả label đã tạo */}
+          <div style={{ marginBottom: 32 }}>
+            <h3 style={{ fontWeight: 500, fontSize: 18, marginBottom: 12 }}>Tất cả label đã tạo</h3>
+            {labels.length === 0 ? (
+              <Text as="span" color="subdued">Chưa có label nào.</Text>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {labels.map(label => (
+                  <Card key={label.id} sectioned>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{
+                        minWidth: 80,
+                        minHeight: 32,
+                        background: label.background,
+                        color: '#fff',
+                        borderRadius: 16,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0 16px',
+                        fontWeight: 600,
+                        fontSize: 16,
+                      }}>{label.text}</div>
+                      <div>
+                        <div><b>Vị trí:</b> {label.position}</div>
+                        <div><b>Điều kiện:</b> {label.condition}</div>
+                        {label.condition === 'specific' && (
+                          <div><b>Product IDs:</b> {Array.isArray(label.productIds) ? label.productIds.join(', ') : ''}</div>
+                        )}
+                        <div style={{ fontSize: 12, color: '#888' }}>Tạo lúc: {new Date(label.createdAt).toLocaleString()}</div>
+                      </div>
+                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                        <Button size="slim" onClick={() => handleEditLabel(label)}>Chỉnh sửa</Button>
+                        <Button size="slim" destructive onClick={() => handleDeleteLabel(label.id)}>Xóa</Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
-          {/* Success/Error Messages */}
-          {actionData?.success && (
-            <Banner status="success" title="Thành công">
-              Label đã được tạo thành công!
-            </Banner>
-          )}
-          {actionData?.error && (
-            <Banner status="critical" title="Lỗi">
-              {actionData.error}
-            </Banner>
-          )}
-
-
-          {/* Products Grid */}
-          <div style={{ marginTop: 32 }}>
-            <ResourceList
-              resourceName={{ singular: "product", plural: "products" }}
-              items={products}
-              renderItem={(product) => (
-                <ResourceList.Item id={product.id}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <Thumbnail
-                      source={product.featuredImage?.url || "https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"}
-                      alt={product.title}
-                      style={{ maxWidth: 100, width: 100, height: 'auto', objectFit: 'cover' }}
-                    />
-                    <div style={{ fontWeight: 500 }}>{product.title}</div>
-                  </div>
-                </ResourceList.Item>
-              )}
-            />
-          </div>
-
-          {/* Load More */}
-          {hasNextPage && (
-            <div style={{ textAlign: 'center', marginTop: 24 }}>
-              <Button onClick={handleLoadMore} loading={loadingMore} disabled={loadingMore}>
-                Xem thêm sản phẩm
-              </Button>
-            </div>
-          )}
         </Layout.Section>
       </Layout>
 

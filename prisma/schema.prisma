@@ -33,10 +33,11 @@ model Session {
 
 model Label {
   id         String   @id @default(uuid())
-  productId  String   // Shopify Product ID
   text       String
   background String
-  position   String   // e.g. 'top-left', 'top-right', etc.
+  position   String
+  condition  String
+  productIds Json?  
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
