@@ -3,7 +3,7 @@
 client_id = "d090f486b6ac47969dca38d6140e1e96"
 name = "DO Product Label"
 handle = "do-product-label"
-application_url = "https://much-zealand-pd-autumn.trycloudflare.com"
+application_url = "https://respondent-district-inspections-domestic.trycloudflare.com"
 embedded = true
 
 [webhooks]
@@ -22,10 +22,13 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://much-zealand-pd-autumn.trycloudflare.com/auth/callback", "https://much-zealand-pd-autumn.trycloudflare.com/auth/shopify/callback", "https://much-zealand-pd-autumn.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://respondent-district-inspections-domestic.trycloudflare.com/auth/callback", "https://respondent-district-inspections-domestic.trycloudflare.com/auth/shopify/callback", "https://respondent-district-inspections-domestic.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
 
 [build]
 automatically_update_urls_on_dev = true
+include_config_on_deploy = true
+dev_store_url = "staging-digitaloutlook.myshopify.com"
+
