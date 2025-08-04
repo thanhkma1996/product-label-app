@@ -12,3 +12,20 @@ npm install prisma@latest @prisma/client@latest
 npx prisma generate
 npx prisma migrate dev
 npx prisma studio
+
+# Hien thi label ngoai FE
+tại sao phải tạo API endpoint riêng thay vì truy cập trực tiếp database. Đây là lý do:
+
+1. Customer truy cập store
+   ↓
+2. Shopify load theme extension
+   ↓
+3. Extension load label-inject.js (client-side)
+   ↓
+4. Script fetch data từ API endpoint
+   ↓
+5. API endpoint query database (server-side)
+   ↓
+6. Trả về JSON data
+   ↓
+7. Script render labels trên page

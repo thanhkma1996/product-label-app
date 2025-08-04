@@ -1,5 +1,21 @@
 (async function() {
-    const apiUrl = '/apps/do-product-label/app/labels.json';
+    // Get current domain and construct API URLs
+    const currentDomain = window.location.origin;
+    const apiUrl = `${currentDomain}/apps/do-product-label/app/labels.json`;
+    const testUrl = `${currentDomain}/apps/do-product-label/app/labels.test`;
+  
+    // Test endpoint first
+    try {
+      const testRes = await fetch(testUrl);
+      if (testRes.ok) {
+        const testData = await testRes.json();
+        console.log('Product Label Extension: Test endpoint working:', testData);
+      } else {
+        console.error('Product Label Extension: Test endpoint failed:', testRes.status);
+      }
+    } catch (e) {
+      console.error('Product Label Extension: Test endpoint error:', e);
+    }
   
     // Fetch labels
     let labels = [];
@@ -152,4 +168,54 @@
         });
       });
     });
-  })();
+    
+    // Set up mutation observer to handle dynamic content (AJAX, infinite scroll, etc.)
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList') {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === 1) { // Element node
+              // Check if the added node is a product card
+              const productCards = node.querySelectorAll ? node.querySelectorAll('[data-product-id]') : [];
+              productCards.forEach(card => {
+                const productId = getProductId(card);
+                if (!productId) return;
+                
+                // Remove existing labels to avoid duplicates
+                card.querySelectorAll('.shopify-label-badge').forEach(badge => badge.remove());
+                
+                labels.forEach(label => {
+                  if (shouldApplyLabel(label, productId)) {
+                    renderLabel(card, label);
+                  }
+                });
+              });
+              
+              // Also check if the node itself is a product card
+              if (node.getAttribute && node.getAttribute('data-product-id')) {
+                const productId = getProductId(node);
+                if (productId) {
+                  // Remove existing labels to avoid duplicates
+                  node.querySelectorAll('.shopify-label-badge').forEach(badge => badge.remove());
+                  
+                  labels.forEach(label => {
+                    if (shouldApplyLabel(label, productId)) {
+                      renderLabel(node, label);
+                    }
+                  });
+                }
+              }
+            }
+          });
+        }
+      });
+    });
+    
+    // Start observing
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    console.log('Product Label Extension: Initialized successfully');
+  })(); 

@@ -106,11 +106,6 @@ export default function Index() {
 
   return (
     <Page>
-      <TitleBar title="Remix app template">
-        <button variant="primary" onClick={generateProduct}>
-          Generate a product
-        </button>
-      </TitleBar>
       <BlockStack gap="500">
         <Layout>
           <Layout.Section>
@@ -123,16 +118,14 @@ export default function Index() {
                   <Text variant="bodyMd" as="p">
                     This embedded app template uses{" "}
                     <Link
-                      url="https://shopify.dev/docs/apps/tools/app-bridge"
-                      target="_blank"
-                      removeUnderline
+                     
                     >
                       App Bridge
                     </Link>{" "}
                     interface examples like an{" "}
-                    <Link url="/app/additional" removeUnderline>
-                      additional page in the app nav
-                    </Link>
+                    <Link to="/app/labels" rel="home">
+          Product labels
+        </Link>
                     , as well as an{" "}
                     <Link
                       url="https://shopify.dev/docs/api/admin-graphql"

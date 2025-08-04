@@ -49,7 +49,7 @@
 })();
 </script>
 
-<script src="https://much-zealand-pd-autumn.trycloudflare.com/label-inject.js" defer></script>
+<script src="{{ 'label-inject.js' | asset_url }}" defer></script>
 
 {% schema %}
 {
@@ -68,6 +68,13 @@
       "type": "paragraph", 
       "content": "📝 Configure your labels in the app admin panel. This extension works with any Shopify theme."
     }
+  ],
+  "templates": [
+    "index",
+    "product",
+    "collection",
+    "search",
+    "page"
   ]
 }
 {% endschema %}
