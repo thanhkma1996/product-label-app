@@ -5,10 +5,10 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useState, useCallback, useEffect } from "react";
-import { prisma } from '../prisma.server';
 import { redirect } from "@remix-run/node";
 
 export const loader = async ({ request }) => {
+  const { prisma } = await import('../prisma.server');
   try {
     const { admin, session } = await authenticate.admin(request);
     const shop = session?.shop || "Cửa hàng Shopify";
@@ -52,6 +52,7 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
+  const { prisma } = await import('../prisma.server');
   try {
     const formData = await request.formData();
     const actionType = formData.get('_action');

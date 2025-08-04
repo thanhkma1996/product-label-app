@@ -1,0 +1,73 @@
+{% comment %}
+  Product Label Embed Block - Auto-inject for any theme
+  This block automatically injects product labels without requiring any theme modifications
+{% endcomment %}
+
+{{ 'auto-inject.css' | asset_url | stylesheet_tag }}
+
+<script>
+(function() {
+  // Auto-inject additional CSS for better compatibility
+  const style = document.createElement('style');
+  style.textContent = `
+    /* Additional auto-inject styles for universal theme support */
+    .shopify-label-badge {
+      position: absolute !important;
+      z-index: 999 !important;
+      padding: 4px 16px !important;
+      border-radius: 16px !important;
+      font-weight: bold !important;
+      font-size: 14px !important;
+      letter-spacing: 1px !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+      pointer-events: none !important;
+      color: #fff !important;
+      font-family: inherit !important;
+      text-align: center !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      max-width: calc(100% - 24px) !important;
+    }
+    
+    /* Universal product card positioning */
+    [class*="product"], [class*="card"], [class*="item"] {
+      position: relative !important;
+    }
+    
+    /* Override any theme conflicts */
+    .shopify-label-badge * {
+      color: inherit !important;
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+  
+  console.log('Product Label Extension: CSS injected successfully');
+})();
+</script>
+
+<script src="https://much-zealand-pd-autumn.trycloudflare.com/label-inject.js" defer></script>
+
+{% schema %}
+{
+  "name": "Product Label Embed",
+  "target": "body",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Product Labels - Auto Setup"
+    },
+    {
+      "type": "paragraph",
+      "content": "✅ Labels will be automatically applied to all products. No theme modifications required!"
+    },
+    {
+      "type": "paragraph", 
+      "content": "📝 Configure your labels in the app admin panel. This extension works with any Shopify theme."
+    }
+  ]
+}
+{% endschema %}

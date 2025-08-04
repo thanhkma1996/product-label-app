@@ -1,0 +1,50 @@
+/* Auto-injected CSS for Product Labels */
+.shopify-label-badge {
+  position: absolute !important;
+  z-index: 10 !important;
+  padding: 4px 16px !important;
+  border-radius: 16px !important;
+  font-weight: bold !important;
+  font-size: 14px !important;
+  letter-spacing: 1px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+  pointer-events: none !important;
+  color: #fff !important;
+  font-family: inherit !important;
+}
+
+.product-label-container {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Ensure product cards have relative positioning */
+.card-wrapper, 
+.product-card, 
+[data-product-id], 
+[data-product-handle],
+.product-item,
+.product-grid-item,
+.product-thumbnail,
+.product-image,
+.product-info {
+  position: relative !important;
+}
+
+/* Product detail page containers */
+.product__media-item, 
+.product__media-container, 
+.product__info-wrapper,
+.product__media-wrapper,
+.product__media,
+.product-gallery,
+.product-media,
+.product-details {
+  position: relative !important;
+}
+
+/* Override any conflicting styles */
+.shopify-label-badge * {
+  color: inherit !important;
+  background: none !important;
+} 

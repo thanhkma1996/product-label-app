@@ -1,0 +1,22 @@
+{% comment %}
+  Product Labels Snippet for Dawn Theme
+  This snippet can be included in product cards and product detail pages
+{% endcomment %}
+
+{% comment %}
+  Usage in product card:
+  {% render 'stars' with product: product %}
+  
+  Usage in product detail:
+  {% render 'stars' with product: product, detail: true %}
+{% endcomment %}
+
+{% if product %}
+  <div class="product-label-container" 
+       data-product-id="{{ product.id }}" 
+       data-product-handle="{{ product.handle }}"
+       style="position: relative;">
+    {% comment %} Product labels will be injected here by JavaScript {% endcomment %}
+  </div>
+{% endif %}
+

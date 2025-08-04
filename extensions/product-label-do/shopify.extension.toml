@@ -1,0 +1,11 @@
+name = "Product Label DO"
+type = "theme_app_extension"
+handle = "product-label-do"
+
+[capabilities]
+network_access = true
+api_access = true
+
+[settings]
+type = "json"
+
