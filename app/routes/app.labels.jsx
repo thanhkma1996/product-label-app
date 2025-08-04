@@ -259,14 +259,14 @@ export default function LabelsProductList() {
       <Layout>
         <Layout.Section>
           <TextContainer>
-            <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 16 }}>Cửa hàng: {shop}</h2>
+            <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 16 }}>Welcome to Label Product App</h2>
           </TextContainer>
           <div style={{ marginBottom: 24 }}>
-            <Button primary onClick={openCreateLabelModal}>Tạo label</Button>
+            <Button primary onClick={openCreateLabelModal}>Create</Button>
           </div>
-          {/* Danh sách tất cả label đã tạo */}
+          {/* Danh sách List all label */}
           <div style={{ marginBottom: 32 }}>
-            <h3 style={{ fontWeight: 500, fontSize: 18, marginBottom: 12 }}>Tất cả label đã tạo</h3>
+            <h3 style={{ fontWeight: 500, fontSize: 18, marginBottom: 12 }}>List all label</h3>
             {labels.length === 0 ? (
               <Text as="span" color="subdued">Chưa có label nào.</Text>
             ) : (
@@ -288,16 +288,16 @@ export default function LabelsProductList() {
                         fontSize: 16,
                       }}>{label.text}</div>
                       <div>
-                        <div><b>Vị trí:</b> {label.position}</div>
-                        <div><b>Điều kiện:</b> {label.condition}</div>
+                        <div><b>Position</b> {label.position}</div>
+                        <div><b>Condition</b> {label.condition}</div>
                         {label.condition === 'specific' && (
                           <div><b>Product IDs:</b> {Array.isArray(label.productIds) ? label.productIds.join(', ') : ''}</div>
                         )}
-                        <div style={{ fontSize: 12, color: '#888' }}>Tạo lúc: {new Date(label.createdAt).toLocaleString()}</div>
+                        <div style={{ fontSize: 12, color: '#888' }}>Created at {new Date(label.createdAt).toLocaleString()}</div>
                       </div>
                       <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                        <Button size="slim" onClick={() => handleEditLabel(label)}>Chỉnh sửa</Button>
-                        <Button size="slim" destructive onClick={() => handleDeleteLabel(label.id)}>Xóa</Button>
+                        <Button size="slim" onClick={() => handleEditLabel(label)}>Edit</Button>
+                        <Button size="slim" destructive onClick={() => handleDeleteLabel(label.id)}>Delete</Button>
                       </div>
                     </div>
                   </Card>

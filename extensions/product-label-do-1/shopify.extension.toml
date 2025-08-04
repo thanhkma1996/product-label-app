@@ -1,6 +1,6 @@
-name = "Product Label DO"
+name = "Product Label DO 1"
 type = "theme_app_extension"
-handle = "product-label-do"
+handle = "product-label-do-1"
 
 [capabilities]
 network_access = true
