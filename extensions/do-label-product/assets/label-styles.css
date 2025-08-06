@@ -1,24 +1,27 @@
 /* DO Product Label Styles */
 .do-product-label {
-  position: absolute;
-  z-index: 1000;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-  color: #ffffff;
-  text-align: center;
-  min-width: 60px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  pointer-events: none;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  position: absolute !important;
+  z-index: 9999 !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  font-weight: bold !important;
+  color: #ffffff !important;
+  text-align: center !important;
+  min-width: 60px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+  pointer-events: none !important;
+  transition: all 0.3s ease !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  margin: 0 !important;
+  border: none !important;
+  background-clip: padding-box !important;
 }
 
 .do-product-label:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Responsive adjustments */
@@ -44,4 +47,4 @@
 
 .do-product-label {
   animation: labelFadeIn 0.5s ease-out;
-} 
+}

@@ -60,6 +60,11 @@
         labelEl.style.top = "10px";
         labelEl.style.left = "10px";
         break;
+      case "top-center":
+        labelEl.style.top = "10px";
+        labelEl.style.left = "50%";
+        labelEl.style.transform = "translateX(-50%)";
+        break;
       case "top-right":
         labelEl.style.top = "10px";
         labelEl.style.right = "10px";
@@ -67,6 +72,11 @@
       case "bottom-left":
         labelEl.style.bottom = "10px";
         labelEl.style.left = "10px";
+        break;
+      case "bottom-center":
+        labelEl.style.bottom = "10px";
+        labelEl.style.left = "50%";
+        labelEl.style.transform = "translateX(-50%)";
         break;
       case "bottom-right":
         labelEl.style.bottom = "10px";
@@ -76,6 +86,14 @@
         labelEl.style.top = "50%";
         labelEl.style.left = "50%";
         labelEl.style.transform = "translate(-50%, -50%)";
+        break;
+      default:
+        // Fallback to top-left if position is not recognized
+        console.warn(
+          `DO Label: Unknown position "${position}", using top-left`,
+        );
+        labelEl.style.top = "10px";
+        labelEl.style.left = "10px";
         break;
     }
 
@@ -112,20 +130,42 @@
   }
 
   function injectLabels(labels, productId) {
-    // Find product image container
+    // Find product image container with more comprehensive selectors
     const productImageContainer =
+      // Dawn theme
       document.querySelector(".product__media-container") ||
+      document.querySelector(".product__media-item") ||
+      // Debut theme
       document.querySelector(".product-single__media") ||
+      document.querySelector(".product-single__photo") ||
+      // Other common themes
       document.querySelector(".product__image-container") ||
       document.querySelector("[data-product-image]") ||
-      document.querySelector(".product__media-item") ||
-      document.querySelector(".product__photo");
-
+      document.querySelector(".product__photo") ||
+      document.querySelector(".product-image") ||
+      // Fallback to main product container
+      document.querySelector(".product__media") ||
+      document.querySelector(".product-single") ||
+      document.querySelector("[data-product-container]");
 
     if (!productImageContainer) {
-      console.log("DO Label: Product image container not found");
+      console.log(
+        "DO Label: Product image container not found. Available containers:",
+        {
+          mediaContainer: document.querySelector(".product__media-container"),
+          mediaItem: document.querySelector(".product__media-item"),
+          singleMedia: document.querySelector(".product-single__media"),
+          imageContainer: document.querySelector(".product__image-container"),
+          productImage: document.querySelector("[data-product-image]"),
+          productPhoto: document.querySelector(".product__photo"),
+          productMedia: document.querySelector(".product__media"),
+          productSingle: document.querySelector(".product-single"),
+        },
+      );
       return;
     }
+
+    console.log("DO Label: Found container:", productImageContainer.className);
 
     // Set container to relative positioning if needed
     if (getComputedStyle(productImageContainer).position === "static") {
