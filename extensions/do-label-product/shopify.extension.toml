@@ -1,0 +1,6 @@
+name = "DO Label Product"
+type = "theme"
+
+[capabilities]
+network_access = true
+

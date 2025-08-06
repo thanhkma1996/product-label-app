@@ -379,14 +379,14 @@ export default function LabelsProductList() {
                     </div>
                     <div style={{ marginTop: 16 }}>
                       <Select
-                        label="Vị trí label"
+                        label="Position label"
                         options={[
-                          { label: "Trên trái (top-left)", value: "top-left" },
-                          { label: "Trên giữa (top-center)", value: "top-center" },
-                          { label: "Trên phải (top-right)", value: "top-right" },
-                          { label: "Dưới trái (bottom-left)", value: "bottom-left" },
-                          { label: "Dưới giữa (bottom-center)", value: "bottom-center" },
-                          { label: "Dưới phải (bottom-right)", value: "bottom-right" },
+                          { label: "Top Left (top-left)", value: "top-left" },
+                          { label: "Top Center (top-center)", value: "top-center" },
+                          { label: "Top Right (top-right)", value: "top-right" },
+                          { label: "Bottom Left (bottom-left)", value: "bottom-left" },
+                          { label: "Bottom Center (bottom-center)", value: "bottom-center" },
+                          { label: "Bottom Right (bottom-right)", value: "bottom-right" },
                         ]}
                         value={labelPosition}
                         onChange={setLabelPosition}

@@ -13,19 +13,63 @@ npx prisma generate
 npx prisma migrate dev
 npx prisma studio
 
-# Hien thi label ngoai FE
-tại sao phải tạo API endpoint riêng thay vì truy cập trực tiếp database. Đây là lý do:
+# Hiển thị Labels - Giải pháp vượt qua Password Protection
 
-1. Customer truy cập store
+## Vấn đề với Development Store Password Protection
+
+Khi development store có password protection, App Proxy không thể hoạt động vì:
+
+- Store redirect tất cả requests đến `/password`
+- App Proxy bị block bởi password protection
+- Client-side script không thể fetch data
+
+## Giải pháp đã triển khai:
+
+### ✅ 1. Fallback System với Multiple Endpoints
+
+Script sẽ thử các endpoint theo thứ tự:
+
+1. `/apps/doproductlabel/labels` - App Proxy (khi không có password protection)
+2. `https://cover-coating-exotic-lm.trycloudflare.com/api/labels/public` - Direct API (vượt qua password protection)
+
+### ✅ 2. Public API Endpoint
+
+- Tạo endpoint `/api/labels/public` không cần authentication
+- Có thể truy cập trực tiếp từ bất kỳ domain nào
+- Bypass hoàn toàn password protection
+
+### ✅ 3. CORS Headers
+
+- Đã set đúng CORS headers cho cross-origin requests
+- Hỗ trợ cả GET và OPTIONS requests
+
+## Cách hoạt động:
+
+1. **Customer truy cập store** (có password protection)
    ↓
-2. Shopify load theme extension
+2. **Shopify load theme extension**
    ↓
-3. Extension load label-inject.js (client-side)
+3. **Extension load label-inject.js** (client-side)
    ↓
-4. Script fetch data từ API endpoint
+4. **Script thử App Proxy endpoint** (bị block bởi password)
    ↓
-5. API endpoint query database (server-side)
+5. **Script fallback sang Public API** (hoạt động)
    ↓
-6. Trả về JSON data
+6. **Public API query database** (server-side)
    ↓
-7. Script render labels trên page
+7. **Trả về JSON data**
+   ↓
+8. **Script render labels trên page**
+
+## Test Results:
+
+- ✅ Public API: `https://cover-coating-exotic-lm.trycloudflare.com/api/labels/public` - Hoạt động
+- ✅ App Proxy: `/apps/doproductlabel/labels` - Hoạt động khi không có password protection
+- ✅ Fallback system: Tự động chuyển đổi giữa các endpoint
+
+## Kết luận:
+
+Labels sẽ hiển thị ngay cả khi store có password protection nhờ fallback system và public API endpoint.
+
+// Test API enpoint
+https://cover-coating-exotic-lm.trycloudflare.com/apps/doproductlabel/labels

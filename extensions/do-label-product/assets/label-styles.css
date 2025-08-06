@@ -1,0 +1,47 @@
+/* DO Product Label Styles */
+.do-product-label {
+  position: absolute;
+  z-index: 1000;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+  min-width: 60px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  pointer-events: none;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.do-product-label:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .do-product-label {
+    font-size: 10px;
+    padding: 3px 6px;
+    min-width: 50px;
+  }
+}
+
+/* Animation for labels */
+@keyframes labelFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.do-product-label {
+  animation: labelFadeIn 0.5s ease-out;
+} 

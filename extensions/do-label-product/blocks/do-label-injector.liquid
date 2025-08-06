@@ -1,0 +1,21 @@
+{% comment %}
+  DO Product Label Injector Block
+  This block injects product labels into the theme
+{% endcomment %}
+
+{% comment %} {% if template contains 'product' %} {% endcomment %}
+  <script src="{{ 'label-inject.js' | asset_url }}" async></script>
+{% comment %} {% endif %} {% endcomment %}
+
+{% schema %}
+{
+  "name": "DO Product Labels",
+  "target": "section",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "This block automatically injects product labels created in the DO Product Label app admin panel."
+    }
+  ]
+}
+{% endschema %} 

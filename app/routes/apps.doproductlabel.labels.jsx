@@ -1,29 +1,5 @@
-import { authenticate } from "../shopify.server";
-
 export const loader = async ({ request }) => {
   try {
-    // Basic validation - check if request comes from a Shopify store
-    const url = new URL(request.url);
-    const referer = request.headers.get('referer');
-    
-    // Allow requests from Shopify stores or local development
-    const isShopifyRequest = referer && (
-      referer.includes('.myshopify.com') || 
-      referer.includes('localhost') ||
-      referer.includes('127.0.0.1')
-    );
-    
-    if (!isShopifyRequest) {
-      console.log('Blocked request from:', referer);
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 403,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-    }
-    
     // Import prisma
     const { prisma } = await import('../prisma.server');
     
@@ -41,25 +17,26 @@ export const loader = async ({ request }) => {
       }
     });
     
-    console.log('Labels API: Returning', labels.length, 'labels');
+    console.log('App Proxy Labels API: Returning', labels.length, 'labels');
     
-    // Return JSON response
+    // Return JSON response with CORS headers
     return new Response(JSON.stringify(labels), {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
+        'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
       },
     });
   } catch (error) {
-    console.error('Error fetching labels:', error);
+    console.error('Error fetching labels via App Proxy:', error);
     return new Response(JSON.stringify([]), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       },
     });
@@ -73,7 +50,7 @@ export const action = async ({ request }) => {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       },
     });
