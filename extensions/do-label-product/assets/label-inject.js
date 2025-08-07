@@ -4,7 +4,7 @@
   // Configuration - Multiple endpoints for fallback
   const API_ENDPOINTS = [
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
-    "https://cover-coating-exotic-lm.trycloudflare.com/api/labels/public", // Direct API (bypasses password protection)
+    "https://tune-lakes-order-apparently.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
   const LABEL_STYLES = {
     position: "absolute",
@@ -22,22 +22,88 @@
 
   // Utility functions
   function getCurrentProductId() {
+    console.log("DO Label: Attempting to get current product ID...");
+
     // Try to get product ID from various sources
-    const productId =
-      // From meta tag
-      document
-        .querySelector('meta[property="og:url"]')
-        ?.content?.match(/products\/([^?]+)/)?.[1] ||
-      // From URL
-      window.location.pathname.match(/products\/([^?]+)/)?.[1] ||
-      // From product form
-      document.querySelector('input[name="id"]')?.value ||
-      // From product JSON
-      JSON.parse(
-        document.querySelector(
-          'script[type="application/json"][data-product-json]',
-        )?.textContent || "{}",
-      )?.id;
+    let productId = null;
+
+    // From meta tag
+    const metaUrl = document.querySelector('meta[property="og:url"]')?.content;
+    if (metaUrl) {
+      const match = metaUrl.match(/products\/([^?]+)/);
+      if (match) {
+        productId = match[1];
+        console.log(`DO Label: Found product ID from meta tag: ${productId}`);
+      }
+    }
+
+    // From URL if not found from meta
+    if (!productId) {
+      const urlMatch = window.location.pathname.match(/products\/([^?]+)/);
+      if (urlMatch) {
+        productId = urlMatch[1];
+        console.log(`DO Label: Found product ID from URL: ${productId}`);
+      }
+    }
+
+    // From product form
+    if (!productId) {
+      const formInput = document.querySelector('input[name="id"]');
+      if (formInput && formInput.value) {
+        productId = formInput.value;
+        console.log(`DO Label: Found product ID from form input: ${productId}`);
+      }
+    }
+
+    // From product JSON
+    if (!productId) {
+      const productJsonScript = document.querySelector(
+        'script[type="application/json"][data-product-json]',
+      );
+      if (productJsonScript) {
+        try {
+          const productData = JSON.parse(productJsonScript.textContent);
+          if (productData.id) {
+            productId = productData.id.toString();
+            console.log(
+              `DO Label: Found product ID from product JSON: ${productId}`,
+            );
+          }
+        } catch (error) {
+          console.log(`DO Label: Failed to parse product JSON:`, error);
+        }
+      }
+    }
+
+    // From data attributes
+    if (!productId) {
+      const productElement = document.querySelector("[data-product-id]");
+      if (productElement) {
+        productId = productElement.getAttribute("data-product-id");
+        console.log(
+          `DO Label: Found product ID from data attribute: ${productId}`,
+        );
+      }
+    }
+
+    if (productId) {
+      console.log(
+        `DO Label: Final product ID: ${productId} (type: ${typeof productId})`,
+      );
+    } else {
+      console.log(`DO Label: Could not find product ID. Available sources:`, {
+        metaUrl: document.querySelector('meta[property="og:url"]')?.content,
+        currentPath: window.location.pathname,
+        formInput: document.querySelector('input[name="id"]')?.value,
+        productJson:
+          document
+            .querySelector('script[type="application/json"][data-product-json]')
+            ?.textContent?.substring(0, 100) + "...",
+        dataAttribute: document
+          .querySelector("[data-product-id]")
+          ?.getAttribute("data-product-id"),
+      });
+    }
 
     return productId;
   }
@@ -47,14 +113,58 @@
     labelEl.className = "do-product-label";
     labelEl.textContent = label.text;
 
-    // Apply styles
-    Object.assign(labelEl.style, LABEL_STYLES, {
-      backgroundColor: label.background,
-      color: getContrastColor(label.background),
-    });
+    console.log(
+      `DO Label: Creating label element for "${label.text}" with background ${label.background}`,
+    );
+
+    // Apply base styles
+    Object.assign(labelEl.style, LABEL_STYLES);
+
+    // Apply background color with validation
+    if (label.background) {
+      // Check if it's a valid color
+      const isValidColor =
+        /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$|^rgb\(|^rgba\(|^hsl\(|^hsla\(/.test(
+          label.background,
+        );
+
+      if (isValidColor) {
+        labelEl.style.backgroundColor = label.background;
+        console.log(
+          `DO Label: Applied valid background color: ${label.background}`,
+        );
+      } else {
+        // Try to convert to hex if it's a color name
+        const tempDiv = document.createElement("div");
+        tempDiv.style.color = label.background;
+        document.body.appendChild(tempDiv);
+        const computedColor = getComputedStyle(tempDiv).color;
+        document.body.removeChild(tempDiv);
+
+        if (computedColor !== "rgba(0, 0, 0, 0)") {
+          labelEl.style.backgroundColor = computedColor;
+          console.log(
+            `DO Label: Converted color name "${label.background}" to: ${computedColor}`,
+          );
+        } else {
+          // Fallback to default color
+          labelEl.style.backgroundColor = "#ff0000";
+          console.warn(
+            `DO Label: Invalid background color "${label.background}", using fallback: #ff0000`,
+          );
+        }
+      }
+    } else {
+      console.warn(
+        `DO Label: No background color specified for label "${label.text}", using default`,
+      );
+      labelEl.style.backgroundColor = "#ff0000";
+    }
 
     // Position the label
     const position = label.position || "top-left";
+    console.log(`DO Label: Positioning label "${label.text}" at "${position}"`);
+
     switch (position) {
       case "top-left":
         labelEl.style.top = "10px";
@@ -97,35 +207,72 @@
         break;
     }
 
+    console.log(`DO Label: Applied styles for "${label.text}":`, {
+      top: labelEl.style.top,
+      left: labelEl.style.left,
+      right: labelEl.style.right,
+      bottom: labelEl.style.bottom,
+      transform: labelEl.style.transform,
+      position: labelEl.style.position,
+      zIndex: labelEl.style.zIndex,
+      backgroundColor: labelEl.style.backgroundColor,
+    });
+
     return labelEl;
   }
 
-  function getContrastColor(hexColor) {
-    // Remove # if present
-    const hex = hexColor.replace("#", "");
-
-    // Convert to RGB
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-
-    // Calculate luminance
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-    // Return black or white based on luminance
-    return luminance > 0.5 ? "#000000" : "#ffffff";
-  }
-
   function shouldShowLabel(label, productId) {
+    console.log(`DO Label: Checking condition for label "${label.text}":`, {
+      labelCondition: label.condition,
+      labelProductIds: label.productIds,
+      currentProductId: productId,
+      productIdType: typeof productId,
+      productIdsType: typeof label.productIds,
+    });
+
     // If no condition specified, show on all products
-    if (!label.condition) return true;
+    if (
+      !label.condition ||
+      label.condition === "all" ||
+      label.condition === ""
+    ) {
+      console.log(
+        `DO Label: No condition specified, showing label "${label.text}" on all products`,
+      );
+      return true;
+    }
 
     // Check if product is in the specific product list
     if (label.productIds && Array.isArray(label.productIds)) {
-      return label.productIds.includes(productId);
+      const isIncluded = label.productIds.includes(productId);
+      console.log(
+        `DO Label: Product ${productId} in productIds array:`,
+        isIncluded,
+      );
+      return isIncluded;
+    }
+
+    // If productIds is a string, try to parse it as JSON
+    if (label.productIds && typeof label.productIds === "string") {
+      try {
+        const parsedProductIds = JSON.parse(label.productIds);
+        if (Array.isArray(parsedProductIds)) {
+          const isIncluded = parsedProductIds.includes(productId);
+          console.log(
+            `DO Label: Product ${productId} in parsed productIds:`,
+            isIncluded,
+          );
+          return isIncluded;
+        }
+      } catch (error) {
+        console.log(`DO Label: Failed to parse productIds string:`, error);
+      }
     }
 
     // Add more condition logic here as needed
+    console.log(
+      `DO Label: No specific condition matched, showing label "${label.text}" by default`,
+    );
     return true;
   }
 
@@ -165,18 +312,74 @@
       return;
     }
 
-    console.log("DO Label: Found container:", productImageContainer.className);
+    console.log(
+      "DO Label: Found container:",
+      productImageContainer.className,
+      productImageContainer,
+    );
 
     // Set container to relative positioning if needed
-    if (getComputedStyle(productImageContainer).position === "static") {
+    const containerPosition = getComputedStyle(productImageContainer).position;
+    console.log(`DO Label: Container position before: ${containerPosition}`);
+
+    if (containerPosition === "static") {
       productImageContainer.style.position = "relative";
+      console.log(`DO Label: Set container position to relative`);
+    } else {
+      console.log(
+        `DO Label: Container already has position: ${containerPosition}`,
+      );
     }
 
     // Filter and inject labels
-    labels.forEach((label) => {
+    console.log(
+      `DO Label: Processing ${labels.length} labels for product ${productId}`,
+    );
+
+    labels.forEach((label, index) => {
+      console.log(`DO Label: Processing label ${index + 1}:`, {
+        text: label.text,
+        position: label.position,
+        condition: label.condition,
+        productIds: label.productIds,
+        background: label.background,
+        backgroundType: typeof label.background,
+        shouldShow: shouldShowLabel(label, productId),
+      });
+
       if (shouldShowLabel(label, productId)) {
         const labelEl = createLabelElement(label);
         productImageContainer.appendChild(labelEl);
+        console.log(
+          `DO Label: Successfully injected label "${label.text}" at position "${label.position}" with background "${label.background}"`,
+        );
+
+        // Debug: Check if label is actually visible and show applied styles
+        setTimeout(() => {
+          const rect = labelEl.getBoundingClientRect();
+          const computedStyle = getComputedStyle(labelEl);
+          console.log(`DO Label: Label "${label.text}" final styles:`, {
+            width: rect.width,
+            height: rect.height,
+            top: rect.top,
+            left: rect.left,
+            visible: rect.width > 0 && rect.height > 0,
+            display: computedStyle.display,
+            visibility: computedStyle.visibility,
+            opacity: computedStyle.opacity,
+            backgroundColor: computedStyle.backgroundColor,
+            color: computedStyle.color,
+            fontSize: computedStyle.fontSize,
+            fontWeight: computedStyle.fontWeight,
+            borderRadius: computedStyle.borderRadius,
+            padding: computedStyle.padding,
+            boxShadow: computedStyle.boxShadow,
+          });
+        }, 100);
+      } else {
+        console.log(
+          `DO Label: Skipping label "${label.text}" - condition not met`,
+        );
       }
     });
   }
@@ -195,6 +398,21 @@
         if (response.ok) {
           const labels = await response.json();
           console.log(`DO Label: Success with endpoint:`, endpoint);
+          console.log(`DO Label: Raw labels data:`, labels);
+
+          // Log each label's details
+          labels.forEach((label, index) => {
+            console.log(`DO Label: Label ${index + 1} details:`, {
+              id: label.id,
+              text: label.text,
+              background: label.background,
+              position: label.position,
+              condition: label.condition,
+              productIds: label.productIds,
+              createdAt: label.createdAt,
+            });
+          });
+
           return labels;
         } else {
           console.log(

@@ -30,7 +30,7 @@ Khi development store có password protection, App Proxy không thể hoạt đ�
 Script sẽ thử các endpoint theo thứ tự:
 
 1. `/apps/doproductlabel/labels` - App Proxy (khi không có password protection)
-2. `https://cover-coating-exotic-lm.trycloudflare.com/api/labels/public` - Direct API (vượt qua password protection)
+2. `https://tune-lakes-order-apparently.trycloudflare.com/apps/doproductlabel/labels` - Direct API (vượt qua password protection)
 
 ### ✅ 2. Public API Endpoint
 
@@ -63,7 +63,7 @@ Script sẽ thử các endpoint theo thứ tự:
 
 ## Test Results:
 
-- ✅ Public API: `https://cover-coating-exotic-lm.trycloudflare.com/api/labels/public` - Hoạt động
+- ✅ Public API: `https://relatives-harvest-boundaries-forums.trycloudflare.com/api/labels/public` - Hoạt động
 - ✅ App Proxy: `/apps/doproductlabel/labels` - Hoạt động khi không có password protection
 - ✅ Fallback system: Tự động chuyển đổi giữa các endpoint
 
@@ -71,5 +71,6 @@ Script sẽ thử các endpoint theo thứ tự:
 
 Labels sẽ hiển thị ngay cả khi store có password protection nhờ fallback system và public API endpoint.
 
-// Test API enpoint
-https://cover-coating-exotic-lm.trycloudflare.com/apps/doproductlabel/labels
+// Test API endpoints
+https://tune-lakes-order-apparently.trycloudflare.com/apps/doproductlabel/labels => Create cloudflare Tunnel free
+

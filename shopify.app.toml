@@ -3,7 +3,7 @@
 client_id = "d090f486b6ac47969dca38d6140e1e96"
 name = "DO Product Label"
 handle = "do-product-label"
-application_url = "https://rouge-workers-jm-powerseller.trycloudflare.com"
+application_url = "https://tune-lakes-order-apparently.trycloudflare.com"
 embedded = true
 
 [webhooks]
@@ -22,7 +22,7 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://rouge-workers-jm-powerseller.trycloudflare.com/auth/callback", "https://rouge-workers-jm-powerseller.trycloudflare.com/auth/shopify/callback", "https://rouge-workers-jm-powerseller.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://tune-lakes-order-apparently.trycloudflare.com/auth/callback", "https://tune-lakes-order-apparently.trycloudflare.com/auth/shopify/callback", "https://tune-lakes-order-apparently.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
@@ -33,7 +33,7 @@ include_config_on_deploy = true
 dev_store_url = "staging-digitaloutlook.myshopify.com"
 
 [app_proxy]
-url = "https://rouge-workers-jm-powerseller.trycloudflare.com"
+url = "https://tune-lakes-order-apparently.trycloudflare.com"
 prefix = "apps"
 subpath = "doproductlabel"
 
