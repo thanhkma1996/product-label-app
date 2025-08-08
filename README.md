@@ -1,8 +1,10 @@
 #1 Những lỗi thường gặp khi chỉnh sửa database trong schema.prisma và k update chạy npx prisma studio
 
-"Invalid `STUDIO_EMBED_BUILD<"u"&&STUDIO_EMBED_BUILD?"
+```js 
+Invalid `STUDIO_EMBED_BUILD<"u"&&STUDIO_EMBED_BUILD?" ```
 
 Cần chạy các lệnh sau để fix lối:
+```js 
 rm -rf node_modules/.prisma
 rm -rf node_modules
 rm -f package-lock.json # hoặc yarn.lock nếu dùng yarn
@@ -12,6 +14,7 @@ npm install prisma@latest @prisma/client@latest
 npx prisma generate
 npx prisma migrate dev
 npx prisma studio
+```
 
 # Hiển thị Labels - Giải pháp vượt qua Password Protection
 
@@ -74,3 +77,18 @@ Labels sẽ hiển thị ngay cả khi store có password protection nhờ fallb
 // Test API endpoints
 https://tune-lakes-order-apparently.trycloudflare.com/apps/doproductlabel/labels => Create cloudflare Tunnel free
 
+# Lưu ý về trycloudfare
+```js [app_proxy]
+url = "https://repeated-elementary-extras-stroke.trycloudflare.com"
+prefix = "apps"
+subpath = "doproductlabel"
+
+```
+=> Mỗi lần chạy npm run dev CLI sẽ in ra 1 URL trycloudflare.com, nên cần phải thay đổi lại path trong file label-inject.js
+để đảm bảo client có thể truy cập được API 
+- Đặc điểm của trycloudflare.com: URL sẽ được tạo ngẫu nhiên mỗi lần chạy npm run dev CLI
+
+
+# Lưu ý về lưu trữ databse trong prisma dev.sqlite
+- Khi tạo các label database sẽ được lữu trữ trong file dev.sqlite
+- Nguyên nhân tại sao khi đã tạo db ở máy A nhưng sao máy B chạy không có dữ liệu bởi vì đã thêm vào file .gitignore vì vậy khi máy B  DB trống nên sẽ không có dữ liệu đã tạo
