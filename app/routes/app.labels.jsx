@@ -421,12 +421,12 @@ export default function LabelsProductList() {
 
   return (
     <Page>
-      <TitleBar title="Product Labels" />
+      <TitleBar title="DO Product Label" />
       <Layout>
         <Layout.Section>
           <TextContainer>
             <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 16 }}>
-              Welcome to Label Product App
+              Product Label Management
             </h2>
           </TextContainer>
           <div
@@ -435,26 +435,34 @@ export default function LabelsProductList() {
               display: "flex",
               gap: 16,
               alignItems: "center",
+              justifyContent: "space-between",
             }}
           >
-            <Button primary onClick={openCreateLabelModal}>
-              Create
-            </Button>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <Button primary onClick={openCreateLabelModal}>
+                Create New Label
+              </Button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Text as="span" variant="bodyMd">
+                  Filter:
+                </Text>
+                <Select
+                  label=""
+                  labelInline
+                  options={[
+                    { label: "All Labels", value: "all" },
+                    { label: "Active Only", value: "active" },
+                    { label: "Inactive Only", value: "inactive" },
+                  ]}
+                  value={labelFilter}
+                  onChange={setLabelFilter}
+                />
+              </div>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Text as="span" variant="bodyMd">
-                Show:
+              <Text as="span" variant="bodyMd" color="subdued">
+                {labels.length} total labels
               </Text>
-              <Select
-                label=""
-                labelInline
-                options={[
-                  { label: "All Labels", value: "all" },
-                  { label: "Active Only", value: "active" },
-                  { label: "Inactive Only", value: "inactive" },
-                ]}
-                value={labelFilter}
-                onChange={setLabelFilter}
-              />
             </div>
           </div>
           {/* Danh sách List all label */}
@@ -468,7 +476,7 @@ export default function LabelsProductList() {
               }}
             >
               <h3 style={{ fontWeight: 500, fontSize: 18, margin: 0 }}>
-                List all label
+                Product Labels
               </h3>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 {selectedLabelIds.length > 0 && (
@@ -491,9 +499,9 @@ export default function LabelsProductList() {
                     >
                       Deactivate ({selectedLabelIds.length})
                     </Button>
-                    <Button size="slim" onClick={() => setSelectedLabelIds([])}>
+                    {/* <Button size="slim" onClick={() => setSelectedLabelIds([])}>
                       Clear Selection
-                    </Button>
+                    </Button> */}
                   </div>
                 )}
                 <Text as="span" variant="bodyMd" color="subdued">
@@ -534,9 +542,7 @@ export default function LabelsProductList() {
             )}
             {filteredLabels.length === 0 ? (
               <Text as="span" color="subdued">
-                {labels.length === 0
-                  ? "No label found."
-                  : "No label found."}
+                {labels.length === 0 ? "No label found." : "No label found."}
               </Text>
             ) : (
               <div
