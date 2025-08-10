@@ -4,7 +4,7 @@
   // Configuration - Multiple endpoints for fallback
   const API_ENDPOINTS = [
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
-    "https://tune-lakes-order-apparently.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
+    "https://dressed-quilt-o-casino.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
   const LABEL_STYLES = {
     position: "absolute",
@@ -20,10 +20,23 @@
     pointerEvents: "none",
   };
 
+  // Selectors commonly used by Dawn for collection product cards and media
+  const COLLECTION_CARD_SELECTORS = [
+    ".grid__item .card--product",
+    ".grid__item .card",
+    ".card-wrapper",
+    ".product-grid .grid__item",
+  ];
+  const CARD_MEDIA_SELECTORS = [
+    ".card__media",
+    ".card__inner .media",
+    ".media",
+    ".media--transparent",
+    ".media--square",
+  ];
+
   // Utility functions
   function getCurrentProductId() {
-    console.log("DO Label: Attempting to get current product ID...");
-
     // Try to get product ID from various sources
     let productId = null;
 
@@ -33,7 +46,6 @@
       const match = metaUrl.match(/products\/([^?]+)/);
       if (match) {
         productId = match[1];
-        console.log(`DO Label: Found product ID from meta tag: ${productId}`);
       }
     }
 
@@ -42,7 +54,6 @@
       const urlMatch = window.location.pathname.match(/products\/([^?]+)/);
       if (urlMatch) {
         productId = urlMatch[1];
-        console.log(`DO Label: Found product ID from URL: ${productId}`);
       }
     }
 
@@ -51,7 +62,6 @@
       const formInput = document.querySelector('input[name="id"]');
       if (formInput && formInput.value) {
         productId = formInput.value;
-        console.log(`DO Label: Found product ID from form input: ${productId}`);
       }
     }
 
@@ -65,12 +75,9 @@
           const productData = JSON.parse(productJsonScript.textContent);
           if (productData.id) {
             productId = productData.id.toString();
-            console.log(
-              `DO Label: Found product ID from product JSON: ${productId}`,
-            );
           }
         } catch (error) {
-          console.log(`DO Label: Failed to parse product JSON:`, error);
+          // Silent fail
         }
       }
     }
@@ -80,42 +87,102 @@
       const productElement = document.querySelector("[data-product-id]");
       if (productElement) {
         productId = productElement.getAttribute("data-product-id");
-        console.log(
-          `DO Label: Found product ID from data attribute: ${productId}`,
-        );
       }
     }
 
-    if (productId) {
-      console.log(
-        `DO Label: Final product ID: ${productId} (type: ${typeof productId})`,
-      );
-    } else {
-      console.log(`DO Label: Could not find product ID. Available sources:`, {
-        metaUrl: document.querySelector('meta[property="og:url"]')?.content,
-        currentPath: window.location.pathname,
-        formInput: document.querySelector('input[name="id"]')?.value,
-        productJson:
-          document
-            .querySelector('script[type="application/json"][data-product-json]')
-            ?.textContent?.substring(0, 100) + "...",
-        dataAttribute: document
-          .querySelector("[data-product-id]")
-          ?.getAttribute("data-product-id"),
+    return productId;
+  }
+
+  function isCollectionPage() {
+    // Heuristics: URL contains /collections/ and there are product cards
+    const inCollectionsPath =
+      window.location.pathname.includes("/collections/");
+    const hasProductCards = getCollectionProductCards().length > 0;
+    return inCollectionsPath || hasProductCards;
+  }
+
+  function extractHandleFromHref(href) {
+    if (!href) return null;
+    const url = new URL(href, window.location.origin);
+    const match = url.pathname.match(/\/products\/([^/?#]+)/);
+    return match ? match[1] : null;
+  }
+
+  function getProductIdFromCard(cardEl) {
+    // Prefer explicit data attributes if available
+    const byHandle = cardEl.getAttribute("data-product-handle");
+    if (byHandle) return byHandle;
+
+    const byId = cardEl.getAttribute("data-product-id");
+    if (byId) return byId;
+
+    // Try anchor href
+    const productLink = cardEl.querySelector('a[href*="/products/"]');
+    if (productLink) {
+      const handle = extractHandleFromHref(productLink.getAttribute("href"));
+      if (handle) return handle;
+    }
+
+    // As a last resort, look up any nested JSON data blocks (rare)
+    const productJsonScript = cardEl.querySelector(
+      'script[type="application/json"][data-product-json]',
+    );
+    if (productJsonScript) {
+      try {
+        const data = JSON.parse(productJsonScript.textContent);
+        if (data && (data.handle || data.id)) {
+          return (data.handle || data.id).toString();
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    return null;
+  }
+
+  function getCollectionProductCards() {
+    // Find likely product card containers
+    const cards = new Set();
+    COLLECTION_CARD_SELECTORS.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        // Only keep elements that actually contain a product link
+        if (el.querySelector('a[href*="/products/"]')) {
+          cards.add(el);
+        }
+      });
+    });
+
+    // If still empty, try links to products and walk up to card wrapper
+    if (cards.size === 0) {
+      document.querySelectorAll('a[href*="/products/"]').forEach((link) => {
+        const card = link.closest(
+          ".card-wrapper, .card--product, .product-card, .grid__item, li.grid__item",
+        );
+        if (card) cards.add(card);
       });
     }
 
-    return productId;
+    return Array.from(cards);
+  }
+
+  function getCardMediaContainer(cardEl) {
+    for (const sel of CARD_MEDIA_SELECTORS) {
+      const el = cardEl.querySelector(sel);
+      if (el) return el;
+    }
+    // Fallback to first image wrapper or the card itself
+    return (
+      cardEl.querySelector("[data-product-image]") ||
+      cardEl.querySelector("img")?.parentElement ||
+      cardEl
+    );
   }
 
   function createLabelElement(label) {
     const labelEl = document.createElement("div");
     labelEl.className = "do-product-label";
     labelEl.textContent = label.text;
-
-    console.log(
-      `DO Label: Creating label element for "${label.text}" with background ${label.background}`,
-    );
 
     // Apply base styles
     Object.assign(labelEl.style, LABEL_STYLES);
@@ -130,9 +197,6 @@
 
       if (isValidColor) {
         labelEl.style.backgroundColor = label.background;
-        console.log(
-          `DO Label: Applied valid background color: ${label.background}`,
-        );
       } else {
         // Try to convert to hex if it's a color name
         const tempDiv = document.createElement("div");
@@ -143,27 +207,17 @@
 
         if (computedColor !== "rgba(0, 0, 0, 0)") {
           labelEl.style.backgroundColor = computedColor;
-          console.log(
-            `DO Label: Converted color name "${label.background}" to: ${computedColor}`,
-          );
         } else {
           // Fallback to default color
           labelEl.style.backgroundColor = "#ff0000";
-          console.warn(
-            `DO Label: Invalid background color "${label.background}", using fallback: #ff0000`,
-          );
         }
       }
     } else {
-      console.warn(
-        `DO Label: No background color specified for label "${label.text}", using default`,
-      );
       labelEl.style.backgroundColor = "#ff0000";
     }
 
     // Position the label
     const position = label.position || "top-left";
-    console.log(`DO Label: Positioning label "${label.text}" at "${position}"`);
 
     switch (position) {
       case "top-left":
@@ -199,56 +253,27 @@
         break;
       default:
         // Fallback to top-left if position is not recognized
-        console.warn(
-          `DO Label: Unknown position "${position}", using top-left`,
-        );
         labelEl.style.top = "10px";
         labelEl.style.left = "10px";
         break;
     }
 
-    console.log(`DO Label: Applied styles for "${label.text}":`, {
-      top: labelEl.style.top,
-      left: labelEl.style.left,
-      right: labelEl.style.right,
-      bottom: labelEl.style.bottom,
-      transform: labelEl.style.transform,
-      position: labelEl.style.position,
-      zIndex: labelEl.style.zIndex,
-      backgroundColor: labelEl.style.backgroundColor,
-    });
-
     return labelEl;
   }
 
   function shouldShowLabel(label, productId) {
-    console.log(`DO Label: Checking condition for label "${label.text}":`, {
-      labelCondition: label.condition,
-      labelProductIds: label.productIds,
-      currentProductId: productId,
-      productIdType: typeof productId,
-      productIdsType: typeof label.productIds,
-    });
-
     // If no condition specified, show on all products
     if (
       !label.condition ||
       label.condition === "all" ||
       label.condition === ""
     ) {
-      console.log(
-        `DO Label: No condition specified, showing label "${label.text}" on all products`,
-      );
       return true;
     }
 
     // Check if product is in the specific product list
     if (label.productIds && Array.isArray(label.productIds)) {
       const isIncluded = label.productIds.includes(productId);
-      console.log(
-        `DO Label: Product ${productId} in productIds array:`,
-        isIncluded,
-      );
       return isIncluded;
     }
 
@@ -258,28 +283,23 @@
         const parsedProductIds = JSON.parse(label.productIds);
         if (Array.isArray(parsedProductIds)) {
           const isIncluded = parsedProductIds.includes(productId);
-          console.log(
-            `DO Label: Product ${productId} in parsed productIds:`,
-            isIncluded,
-          );
           return isIncluded;
         }
       } catch (error) {
-        console.log(`DO Label: Failed to parse productIds string:`, error);
+        // Silent fail
       }
     }
 
     // Add more condition logic here as needed
-    console.log(
-      `DO Label: No specific condition matched, showing label "${label.text}" by default`,
-    );
     return true;
   }
 
   function injectLabels(labels, productId) {
     // Find product image container with more comprehensive selectors
     const productImageContainer =
-      // Dawn theme
+      // Dawn theme - try most specific first
+      document.querySelector(".product__media-list .product__media-item") ||
+      document.querySelector(".product__media-list") ||
       document.querySelector(".product__media-container") ||
       document.querySelector(".product__media-item") ||
       // Debut theme
@@ -296,91 +316,55 @@
       document.querySelector("[data-product-container]");
 
     if (!productImageContainer) {
-      console.log(
-        "DO Label: Product image container not found. Available containers:",
-        {
-          mediaContainer: document.querySelector(".product__media-container"),
-          mediaItem: document.querySelector(".product__media-item"),
-          singleMedia: document.querySelector(".product-single__media"),
-          imageContainer: document.querySelector(".product__image-container"),
-          productImage: document.querySelector("[data-product-image]"),
-          productPhoto: document.querySelector(".product__photo"),
-          productMedia: document.querySelector(".product__media"),
-          productSingle: document.querySelector(".product-single"),
-        },
-      );
       return;
     }
 
-    console.log(
-      "DO Label: Found container:",
-      productImageContainer.className,
-      productImageContainer,
-    );
-
     // Set container to relative positioning if needed
     const containerPosition = getComputedStyle(productImageContainer).position;
-    console.log(`DO Label: Container position before: ${containerPosition}`);
 
     if (containerPosition === "static") {
       productImageContainer.style.position = "relative";
-      console.log(`DO Label: Set container position to relative`);
-    } else {
-      console.log(
-        `DO Label: Container already has position: ${containerPosition}`,
-      );
     }
 
-    // Filter and inject labels
-    console.log(
-      `DO Label: Processing ${labels.length} labels for product ${productId}`,
-    );
+    // Clear previously injected labels to avoid duplicates on re-renders
+    productImageContainer
+      .querySelectorAll(".do-product-label")
+      .forEach((el) => el.remove());
 
     labels.forEach((label, index) => {
-      console.log(`DO Label: Processing label ${index + 1}:`, {
-        text: label.text,
-        position: label.position,
-        condition: label.condition,
-        productIds: label.productIds,
-        background: label.background,
-        backgroundType: typeof label.background,
-        shouldShow: shouldShowLabel(label, productId),
-      });
-
       if (shouldShowLabel(label, productId)) {
         const labelEl = createLabelElement(label);
         productImageContainer.appendChild(labelEl);
-        console.log(
-          `DO Label: Successfully injected label "${label.text}" at position "${label.position}" with background "${label.background}"`,
-        );
-
-        // Debug: Check if label is actually visible and show applied styles
-        setTimeout(() => {
-          const rect = labelEl.getBoundingClientRect();
-          const computedStyle = getComputedStyle(labelEl);
-          console.log(`DO Label: Label "${label.text}" final styles:`, {
-            width: rect.width,
-            height: rect.height,
-            top: rect.top,
-            left: rect.left,
-            visible: rect.width > 0 && rect.height > 0,
-            display: computedStyle.display,
-            visibility: computedStyle.visibility,
-            opacity: computedStyle.opacity,
-            backgroundColor: computedStyle.backgroundColor,
-            color: computedStyle.color,
-            fontSize: computedStyle.fontSize,
-            fontWeight: computedStyle.fontWeight,
-            borderRadius: computedStyle.borderRadius,
-            padding: computedStyle.padding,
-            boxShadow: computedStyle.boxShadow,
-          });
-        }, 100);
-      } else {
-        console.log(
-          `DO Label: Skipping label "${label.text}" - condition not met`,
-        );
       }
+    });
+  }
+
+  function injectLabelsIntoCollection(labels) {
+    const cards = getCollectionProductCards();
+
+    cards.forEach((card, idx) => {
+      const productId = getProductIdFromCard(card);
+      if (!productId) return;
+
+      const mediaContainer = getCardMediaContainer(card);
+      if (!mediaContainer) return;
+
+      const containerPosition = getComputedStyle(mediaContainer).position;
+      if (containerPosition === "static") {
+        mediaContainer.style.position = "relative";
+      }
+
+      // Clear previously injected labels to avoid duplicates on re-renders
+      mediaContainer
+        .querySelectorAll(".do-product-label")
+        .forEach((el) => el.remove());
+
+      labels.forEach((label) => {
+        if (shouldShowLabel(label, productId)) {
+          const labelEl = createLabelElement(label);
+          mediaContainer.appendChild(labelEl);
+        }
+      });
     });
   }
 
@@ -389,65 +373,41 @@
     for (let i = 0; i < API_ENDPOINTS.length; i++) {
       const endpoint = API_ENDPOINTS[i];
       try {
-        console.log(
-          `DO Label: Trying endpoint ${i + 1}/${API_ENDPOINTS.length}:`,
-          endpoint,
-        );
-
         const response = await fetch(endpoint);
         if (response.ok) {
           const labels = await response.json();
-          console.log(`DO Label: Success with endpoint:`, endpoint);
-          console.log(`DO Label: Raw labels data:`, labels);
-
-          // Log each label's details
-          labels.forEach((label, index) => {
-            console.log(`DO Label: Label ${index + 1} details:`, {
-              id: label.id,
-              text: label.text,
-              background: label.background,
-              position: label.position,
-              condition: label.condition,
-              productIds: label.productIds,
-              createdAt: label.createdAt,
-            });
-          });
-
           return labels;
-        } else {
-          console.log(
-            `DO Label: Endpoint ${endpoint} returned status:`,
-            response.status,
-          );
         }
       } catch (error) {
-        console.log(`DO Label: Endpoint ${endpoint} failed:`, error.message);
+        // Silent fail
       }
     }
 
-    console.error("DO Label: All endpoints failed");
     return [];
   }
 
   // Main execution
   function init() {
-    const productId = getCurrentProductId();
+    const onProductPage =
+      /\/products\//.test(window.location.pathname) || !!getCurrentProductId();
+    const onCollectionPage = isCollectionPage();
 
-    if (!productId) {
-      console.log("DO Label: Product ID not found");
-      return;
-    }
-
-    console.log("DO Label: Initializing for product:", productId);
-
-    // Fetch and inject labels (async/await)
+    // Fetch and inject labels once per init
     (async () => {
       const labels = await fetchLabels();
-      if (labels.length > 0) {
-        console.log("DO Label: Found", labels.length, "labels");
-        injectLabels(labels, productId);
-      } else {
-        console.log("DO Label: No labels found");
+      if (!labels || labels.length === 0) {
+        return;
+      }
+
+      if (onProductPage) {
+        const productId = getCurrentProductId();
+        if (productId) {
+          injectLabels(labels, productId);
+        }
+      }
+
+      if (onCollectionPage) {
+        injectLabelsIntoCollection(labels);
       }
     })();
   }

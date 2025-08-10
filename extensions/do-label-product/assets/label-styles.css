@@ -1,0 +1,9 @@
+.product__info-wrapper .do-product-label,
+.product__info-wrapper.grid__item .do-product-label,
+.product__info .do-product-label,
+.product__details .do-product-label,
+.product__meta .do-product-label,
+.product__description .do-product-label {
+  display: none !important;
+}
+

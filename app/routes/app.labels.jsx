@@ -1,14 +1,33 @@
-import { useLoaderData, useActionData, useNavigation, useFetcher } from "@remix-run/react";
+import {
+  useLoaderData,
+  useActionData,
+  useNavigation,
+  useFetcher,
+} from "@remix-run/react";
 import { authenticate } from "../shopify.server";
 import {
-  Page, Thumbnail, Layout, Button, TextField, EmptyState, TextContainer, Banner, Modal, ColorPicker, Card, Select, Tabs, ChoiceList, ResourceList
+  Page,
+  Thumbnail,
+  Layout,
+  Button,
+  TextField,
+  EmptyState,
+  TextContainer,
+  Banner,
+  Modal,
+  ColorPicker,
+  Card,
+  Select,
+  Tabs,
+  ChoiceList,
+  ResourceList,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useState, useCallback, useEffect } from "react";
 import { redirect } from "@remix-run/node";
 
 export const loader = async ({ request }) => {
-  const { prisma } = await import('../prisma.server');
+  const { prisma } = await import("../prisma.server");
   try {
     const { admin, session } = await authenticate.admin(request);
     const shop = session?.shop || "Cửa hàng Shopify";
@@ -40,10 +59,15 @@ export const loader = async ({ request }) => {
     };
     const response = await admin.graphql(query, { variables });
     const data = await response.json();
-    const products = data.data.products.edges.map((edge) => ({ ...edge.node, cursor: edge.cursor }));
+    const products = data.data.products.edges.map((edge) => ({
+      ...edge.node,
+      cursor: edge.cursor,
+    }));
     const { hasNextPage, endCursor } = data.data.products.pageInfo;
     // Lấy tất cả label từ Prisma
-    const labels = await prisma.label.findMany({ orderBy: { createdAt: 'desc' } });
+    const labels = await prisma.label.findMany({
+      orderBy: { createdAt: "desc" },
+    });
     return { products, shop, hasNextPage, endCursor, labels };
   } catch (error) {
     // Nếu lỗi do thiếu shop domain/session, redirect về trang login
@@ -52,23 +76,23 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  const { prisma } = await import('../prisma.server');
+  const { prisma } = await import("../prisma.server");
   try {
     const formData = await request.formData();
-    const actionType = formData.get('_action');
-    if (actionType === 'delete') {
-      const id = formData.get('id');
+    const actionType = formData.get("_action");
+    if (actionType === "delete") {
+      const id = formData.get("id");
       await prisma.label.delete({ where: { id } });
       return { success: true, deleted: id };
     }
-    if (actionType === 'edit') {
+    if (actionType === "edit") {
       // Chỉnh sửa label
-      const id = formData.get('id');
-      const text = formData.get('text');
-      const background = formData.get('background');
-      const position = formData.get('position') || 'bottom-center';
-      const condition = formData.get('condition');
-      const productIds = formData.getAll('productIds');
+      const id = formData.get("id");
+      const text = formData.get("text");
+      const background = formData.get("background");
+      const position = formData.get("position") || "bottom-center";
+      const condition = formData.get("condition");
+      const productIds = formData.getAll("productIds");
       const updated = await prisma.label.update({
         where: { id },
         data: {
@@ -76,39 +100,45 @@ export const action = async ({ request }) => {
           background,
           position,
           condition,
-          productIds: condition === 'specific' ? productIds : [],
+          productIds: condition === "specific" ? productIds : [],
         },
       });
       return { success: true, updated };
     }
-    const text = formData.get('text');
-    const background = formData.get('background');
-    const position = formData.get('position') || 'bottom-center';
-    const condition = formData.get('condition'); // 'all' or 'specific'
-    const productIds = formData.getAll('productIds'); // For 'specific' condition
-    
-    console.log('Action received:', { text, background, position, condition, productIds });
-    
+    const text = formData.get("text");
+    const background = formData.get("background");
+    const position = formData.get("position") || "bottom-center";
+    const condition = formData.get("condition"); // 'all' or 'specific'
+    const productIds = formData.getAll("productIds"); // For 'specific' condition
+
+    console.log("Action received:", {
+      text,
+      background,
+      position,
+      condition,
+      productIds,
+    });
+
     if (!text || !background) {
-      console.log('Missing required fields');
-      return { error: 'Thiếu thông tin bắt buộc' };
+      console.log("Missing required fields");
+      return { error: "Thiếu thông tin bắt buộc" };
     }
-    
+
     const label = await prisma.label.create({
-      data: { 
-        text, 
-        background, 
+      data: {
+        text,
+        background,
         position,
         condition: condition,
-        productIds: condition === 'specific' ? productIds : undefined,
-      }
+        productIds: condition === "specific" ? productIds : undefined,
+      },
     });
-    
-    console.log('Label created successfully:', label);
+
+    console.log("Label created successfully:", label);
     return { success: true, label };
   } catch (error) {
-    console.error('Error creating label:', error);
-    return { error: 'Lỗi khi tạo label: ' + error.message };
+    console.error("Error creating label:", error);
+    return { error: "Lỗi khi tạo label: " + error.message };
   }
 };
 
@@ -140,7 +170,9 @@ export default function LabelsProductList() {
   const [modalActive, setModalActive] = useState(false);
   const [labelText, setLabelText] = useState("");
   const [labelBg, setLabelBg] = useState({ red: 0, green: 128, blue: 96 });
-  const [labelHex, setLabelHex] = useState(hexFromRgb({ red: 0, green: 128, blue: 96 }));
+  const [labelHex, setLabelHex] = useState(
+    hexFromRgb({ red: 0, green: 128, blue: 96 }),
+  );
   const [labelPosition, setLabelPosition] = useState("bottom-center");
   const [activeTab, setActiveTab] = useState(0);
   const [productCondition, setProductCondition] = useState(["all"]); // ["all"] or ["specific"]
@@ -173,15 +205,17 @@ export default function LabelsProductList() {
     setLabelHex(label.background);
     setLabelPosition(label.position);
     setProductCondition([label.condition]);
-    setSelectedProductIds(Array.isArray(label.productIds) ? label.productIds : []);
+    setSelectedProductIds(
+      Array.isArray(label.productIds) ? label.productIds : [],
+    );
     setModalActive(true);
   };
   // Khi submit xóa label
   const handleDeleteLabel = (id) => {
     const formData = new FormData();
-    formData.append('_action', 'delete');
-    formData.append('id', id);
-    fetcher.submit(formData, { method: 'post' });
+    formData.append("_action", "delete");
+    formData.append("id", id);
+    fetcher.submit(formData, { method: "post" });
   };
   // Khi lưu label (tạo hoặc chỉnh sửa)
   const handleSaveLabel = async () => {
@@ -189,26 +223,26 @@ export default function LabelsProductList() {
       return;
     }
     const formData = new FormData();
-    formData.append('text', labelText);
-    formData.append('background', hexFromRgb(labelBg));
-    formData.append('position', labelPosition);
+    formData.append("text", labelText);
+    formData.append("background", hexFromRgb(labelBg));
+    formData.append("position", labelPosition);
     if (productCondition[0] === "all") {
-      formData.append('condition', 'all');
+      formData.append("condition", "all");
     } else {
-      formData.append('condition', 'specific');
-      selectedProductIds.forEach(id => formData.append('productIds', id));
+      formData.append("condition", "specific");
+      selectedProductIds.forEach((id) => formData.append("productIds", id));
     }
     if (editLabel) {
-      formData.append('_action', 'edit');
-      formData.append('id', editLabel.id);
+      formData.append("_action", "edit");
+      formData.append("id", editLabel.id);
     }
     // Submit form to action
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/app/labels';
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/app/labels";
     for (let [key, value] of formData.entries()) {
-      const input = document.createElement('input');
-      input.type = 'hidden';
+      const input = document.createElement("input");
+      input.type = "hidden";
       input.name = key;
       input.value = value;
       form.appendChild(input);
@@ -243,8 +277,12 @@ export default function LabelsProductList() {
   };
   // Helper: hex to rgb
   function hexToRgb(hex) {
-    let c = hex.replace(/^#/, '');
-    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    let c = hex.replace(/^#/, "");
+    if (c.length === 3)
+      c = c
+        .split("")
+        .map((x) => x + x)
+        .join("");
     const num = parseInt(c, 16);
     return {
       red: (num >> 16) & 255,
@@ -259,45 +297,86 @@ export default function LabelsProductList() {
       <Layout>
         <Layout.Section>
           <TextContainer>
-            <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 16 }}>Welcome to Label Product App</h2>
+            <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 16 }}>
+              Welcome to Label Product App
+            </h2>
           </TextContainer>
           <div style={{ marginBottom: 24 }}>
-            <Button primary onClick={openCreateLabelModal}>Create</Button>
+            <Button primary onClick={openCreateLabelModal}>
+              Create
+            </Button>
           </div>
           {/* Danh sách List all label */}
           <div style={{ marginBottom: 32 }}>
-            <h3 style={{ fontWeight: 500, fontSize: 18, marginBottom: 12 }}>List all label</h3>
+            <h3 style={{ fontWeight: 500, fontSize: 18, marginBottom: 12 }}>
+              List all label
+            </h3>
             {labels.length === 0 ? (
-              <Text as="span" color="subdued">Chưa có label nào.</Text>
+              <Text as="span" color="subdued">
+                Chưa có label nào.
+              </Text>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {labels.map(label => (
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 16 }}
+              >
+                {labels.map((label) => (
                   <Card key={label.id} sectioned>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                      <div style={{
-                        minWidth: 80,
-                        minHeight: 32,
-                        background: label.background,
-                        color: '#fff',
-                        borderRadius: 16,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '0 16px',
-                        fontWeight: 600,
-                        fontSize: 16,
-                      }}>{label.text}</div>
-                      <div>
-                        <div><b>Position</b> {label.position}</div>
-                        <div><b>Condition</b> {label.condition}</div>
-                        {label.condition === 'specific' && (
-                          <div><b>Product IDs:</b> {Array.isArray(label.productIds) ? label.productIds.join(', ') : ''}</div>
-                        )}
-                        <div style={{ fontSize: 12, color: '#888' }}>Created at {new Date(label.createdAt).toLocaleString()}</div>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 16 }}
+                    >
+                      <div
+                        style={{
+                          minWidth: 80,
+                          minHeight: 32,
+                          background: label.background,
+                          color: "#fff",
+                          borderRadius: 16,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "0 16px",
+                          fontWeight: 600,
+                          fontSize: 16,
+                        }}
+                      >
+                        {label.text}
                       </div>
-                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                        <Button size="slim" onClick={() => handleEditLabel(label)}>Edit</Button>
-                        <Button size="slim" destructive onClick={() => handleDeleteLabel(label.id)}>Delete</Button>
+                      <div>
+                        <div>
+                          <b>Position</b> {label.position}
+                        </div>
+                        <div>
+                          <b>Condition</b> {label.condition}
+                        </div>
+                        {label.condition === "specific" && (
+                          <div>
+                            <b>Product IDs:</b>{" "}
+                            {Array.isArray(label.productIds)
+                              ? label.productIds.join(", ")
+                              : ""}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 12, color: "#888" }}>
+                          Created at{" "}
+                          {new Date(label.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <div
+                        style={{ marginLeft: "auto", display: "flex", gap: 8 }}
+                      >
+                        <Button
+                          size="slim"
+                          onClick={() => handleEditLabel(label)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="slim"
+                          destructive
+                          onClick={() => handleDeleteLabel(label.id)}
+                        >
+                          Delete
+                        </Button>
                       </div>
                     </div>
                   </Card>
@@ -330,15 +409,24 @@ export default function LabelsProductList() {
         <Modal.Section>
           <Tabs
             tabs={[
-              { id: 'preview', content: 'Preview' },
-              { id: 'product-conditions', content: 'Product conditions' },
+              { id: "preview", content: "Preview" },
+              { id: "product-conditions", content: "Product conditions" },
             ]}
             selected={activeTab}
             onSelect={setActiveTab}
           >
             {activeTab === 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 24 }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 32,
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                  }}
+                >
                   {/* Config Panel */}
                   <div style={{ minWidth: 200 }}>
                     <TextField
@@ -347,7 +435,11 @@ export default function LabelsProductList() {
                       onChange={setLabelText}
                       autoComplete="off"
                       placeholder="Nhập tên label..."
-                      error={!labelText.trim() && labelText !== "" ? "Tên label không được để trống" : ""}
+                      error={
+                        !labelText.trim() && labelText !== ""
+                          ? "Tên label không được để trống"
+                          : ""
+                      }
                     />
                     <div style={{ marginTop: 16 }}>
                       <ColorPicker
@@ -382,11 +474,26 @@ export default function LabelsProductList() {
                         label="Position label"
                         options={[
                           { label: "Top Left (top-left)", value: "top-left" },
-                          { label: "Top Center (top-center)", value: "top-center" },
-                          { label: "Top Right (top-right)", value: "top-right" },
-                          { label: "Bottom Left (bottom-left)", value: "bottom-left" },
-                          { label: "Bottom Center (bottom-center)", value: "bottom-center" },
-                          { label: "Bottom Right (bottom-right)", value: "bottom-right" },
+                          {
+                            label: "Top Center (top-center)",
+                            value: "top-center",
+                          },
+                          {
+                            label: "Top Right (top-right)",
+                            value: "top-right",
+                          },
+                          {
+                            label: "Bottom Left (bottom-left)",
+                            value: "bottom-left",
+                          },
+                          {
+                            label: "Bottom Center (bottom-center)",
+                            value: "bottom-center",
+                          },
+                          {
+                            label: "Bottom Right (bottom-right)",
+                            value: "bottom-right",
+                          },
                         ]}
                         value={labelPosition}
                         onChange={setLabelPosition}
@@ -394,35 +501,54 @@ export default function LabelsProductList() {
                     </div>
                   </div>
                   {/* Preview Panel */}
-                  <div style={{ minWidth: 220, textAlign: 'center' }}>
-                    <div style={{ fontWeight: 600, marginBottom: 8 }}>Preview</div>
-                    <div style={{
-                      position: 'relative',
-                      width: 200,
-                      height: 200,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      background: '#F6F6F7',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <div style={{ width: 100, height: 100, background: '#eee', borderRadius: 8, margin: 'auto' }} />
+                  <div style={{ minWidth: 220, textAlign: "center" }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                      Preview
+                    </div>
+                    <div
+                      style={{
+                        position: "relative",
+                        width: 200,
+                        height: 200,
+                        borderRadius: 8,
+                        overflow: "hidden",
+                        background: "#F6F6F7",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 100,
+                          height: 100,
+                          background: "#eee",
+                          borderRadius: 8,
+                          margin: "auto",
+                        }}
+                      />
                       {labelText && (
                         <div
                           style={{
-                            position: 'absolute',
-                            ...(labelPosition.startsWith('top') ? { top: 16 } : { bottom: 16 }),
-                            ...(labelPosition.endsWith('left') ? { left: 16, transform: 'none' } :
-                              labelPosition.endsWith('right') ? { right: 16, transform: 'none' } :
-                              { left: '50%', transform: 'translateX(-50%)' }),
+                            position: "absolute",
+                            ...(labelPosition.startsWith("top")
+                              ? { top: 16 }
+                              : { bottom: 16 }),
+                            ...(labelPosition.endsWith("left")
+                              ? { left: 16, transform: "none" }
+                              : labelPosition.endsWith("right")
+                                ? { right: 16, transform: "none" }
+                                : {
+                                    left: "50%",
+                                    transform: "translateX(-50%)",
+                                  }),
                             background: hexFromRgb(labelBg),
-                            color: '#fff',
-                            padding: '6px 18px',
+                            color: "#fff",
+                            padding: "6px 18px",
                             borderRadius: 20,
                             fontWeight: 600,
                             fontSize: 16,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
                             letterSpacing: 1,
                           }}
                         >
@@ -455,13 +581,29 @@ export default function LabelsProductList() {
                       selectable
                       renderItem={(product) => (
                         <ResourceList.Item id={product.id}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 16,
+                            }}
+                          >
                             <Thumbnail
-                              source={product.featuredImage?.url || "https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"}
+                              source={
+                                product.featuredImage?.url ||
+                                "https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
+                              }
                               alt={product.title}
-                              style={{ maxWidth: 100, width: 100, height: 'auto', objectFit: 'cover' }}
+                              style={{
+                                maxWidth: 100,
+                                width: 100,
+                                height: "auto",
+                                objectFit: "cover",
+                              }}
                             />
-                            <div style={{ fontWeight: 500 }}>{product.title}</div>
+                            <div style={{ fontWeight: 500 }}>
+                              {product.title}
+                            </div>
                           </div>
                         </ResourceList.Item>
                       )}
@@ -478,7 +620,7 @@ export default function LabelsProductList() {
 }
 
 export const headers = () => ({
-  "Content-Type": "application/json"
+  "Content-Type": "application/json",
 });
 
 export const unstable_shouldReload = () => false;
