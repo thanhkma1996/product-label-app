@@ -21,6 +21,8 @@ import {
   Tabs,
   ChoiceList,
   ResourceList,
+  Text,
+  Badge,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useState, useCallback, useEffect } from "react";
@@ -105,6 +107,40 @@ export const action = async ({ request }) => {
       });
       return { success: true, updated };
     }
+    if (actionType === "toggle") {
+      // Toggle active status
+      const id = formData.get("id");
+      const currentLabel = await prisma.label.findUnique({ where: { id } });
+      const updated = await prisma.label.update({
+        where: { id },
+        data: { active: !currentLabel.active },
+      });
+      return { success: true, updated };
+    }
+    if (actionType === "bulkActivate") {
+      // Bulk activate labels
+      const ids = formData.getAll("ids");
+      if (ids.length > 0) {
+        await prisma.label.updateMany({
+          where: { id: { in: ids } },
+          data: { active: true },
+        });
+        return { success: true, action: "bulkActivate", count: ids.length };
+      }
+      return { error: "No labels selected for bulk activation" };
+    }
+    if (actionType === "bulkDeactivate") {
+      // Bulk deactivate labels
+      const ids = formData.getAll("ids");
+      if (ids.length > 0) {
+        await prisma.label.updateMany({
+          where: { id: { in: ids } },
+          data: { active: false },
+        });
+        return { success: true, action: "bulkDeactivate", count: ids.length };
+      }
+      return { error: "No labels selected for bulk deactivation" };
+    }
     const text = formData.get("text");
     const background = formData.get("background");
     const position = formData.get("position") || "bottom-center";
@@ -131,6 +167,7 @@ export const action = async ({ request }) => {
         position,
         condition: condition,
         productIds: condition === "specific" ? productIds : undefined,
+        active: true, // Default to active
       },
     });
 
@@ -178,10 +215,23 @@ export default function LabelsProductList() {
   const [productCondition, setProductCondition] = useState(["all"]); // ["all"] or ["specific"]
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [editLabel, setEditLabel] = useState(null); // label đang chỉnh sửa
+  const [labelFilter, setLabelFilter] = useState("all"); // "all", "active", "inactive"
+  const [selectedLabelIds, setSelectedLabelIds] = useState([]); // For bulk actions
+  const [loadingLabels, setLoadingLabels] = useState(new Set()); // Track loading state for individual labels
+  const [bulkActionLoading, setBulkActionLoading] = useState(false); // Track bulk action loading
 
   const shop = loaderData.shop;
   const isSubmitting = navigation.state === "submitting";
+  const isFetcherSubmitting = fetcher.state === "submitting";
   const labels = loaderData.labels || [];
+
+  // Filter labels based on active status
+  const filteredLabels = labels.filter((label) => {
+    if (labelFilter === "all") return true;
+    if (labelFilter === "active") return label.active;
+    if (labelFilter === "inactive") return !label.active;
+    return true;
+  });
 
   // Show success/error message
   useEffect(() => {
@@ -194,8 +244,30 @@ export default function LabelsProductList() {
       setProductCondition(["all"]);
       setSelectedProductIds([]);
       setEditLabel(null); // Reset edit state on success
+      setSelectedLabelIds([]); // Reset selected labels on success
+
+      // Reset all loading states on success
+      setLoadingLabels(new Set());
+      setBulkActionLoading(false);
+    }
+
+    // Handle errors
+    if (actionData?.error) {
+      console.error("Action error:", actionData.error);
+      // Reset loading states on error
+      setLoadingLabels(new Set());
+      setBulkActionLoading(false);
     }
   }, [actionData]);
+
+  // Reset loading states when fetcher state changes
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data) {
+      // Reset loading states when fetcher completes
+      setLoadingLabels(new Set());
+      setBulkActionLoading(false);
+    }
+  }, [fetcher.state, fetcher.data]);
 
   // Khi submit chỉnh sửa label
   const handleEditLabel = (label) => {
@@ -212,10 +284,66 @@ export default function LabelsProductList() {
   };
   // Khi submit xóa label
   const handleDeleteLabel = (id) => {
+    setLoadingLabels((prev) => new Set(prev).add(id));
     const formData = new FormData();
     formData.append("_action", "delete");
     formData.append("id", id);
     fetcher.submit(formData, { method: "post" });
+  };
+
+  // Khi toggle active status
+  const handleToggleLabel = (id) => {
+    try {
+      setLoadingLabels((prev) => new Set(prev).add(id));
+      const formData = new FormData();
+      formData.append("_action", "toggle");
+      formData.append("id", id);
+      fetcher.submit(formData, { method: "post" });
+    } catch (error) {
+      console.error("Error toggling label:", error);
+      setLoadingLabels((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+    }
+  };
+  // Bulk activate labels
+  const handleBulkActivate = () => {
+    if (selectedLabelIds.length === 0) return;
+
+    try {
+      setBulkActionLoading(true);
+      const formData = new FormData();
+      formData.append("_action", "bulkActivate");
+      selectedLabelIds.forEach((id) => {
+        formData.append("ids", id);
+      });
+      fetcher.submit(formData, { method: "post" });
+      setSelectedLabelIds([]);
+    } catch (error) {
+      console.error("Error bulk activating labels:", error);
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Bulk deactivate labels
+  const handleBulkDeactivate = () => {
+    if (selectedLabelIds.length === 0) return;
+
+    try {
+      setBulkActionLoading(true);
+      const formData = new FormData();
+      formData.append("_action", "bulkDeactivate");
+      selectedLabelIds.forEach((id) => {
+        formData.append("ids", id);
+      });
+      fetcher.submit(formData, { method: "post" });
+      setSelectedLabelIds([]);
+    } catch (error) {
+      console.error("Error bulk deactivating labels:", error);
+      setBulkActionLoading(false);
+    }
   };
   // Khi lưu label (tạo hoặc chỉnh sửa)
   const handleSaveLabel = async () => {
@@ -301,31 +429,144 @@ export default function LabelsProductList() {
               Welcome to Label Product App
             </h2>
           </TextContainer>
-          <div style={{ marginBottom: 24 }}>
+          <div
+            style={{
+              marginBottom: 24,
+              display: "flex",
+              gap: 16,
+              alignItems: "center",
+            }}
+          >
             <Button primary onClick={openCreateLabelModal}>
               Create
             </Button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Text as="span" variant="bodyMd">
+                Show:
+              </Text>
+              <Select
+                label=""
+                labelInline
+                options={[
+                  { label: "All Labels", value: "all" },
+                  { label: "Active Only", value: "active" },
+                  { label: "Inactive Only", value: "inactive" },
+                ]}
+                value={labelFilter}
+                onChange={setLabelFilter}
+              />
+            </div>
           </div>
           {/* Danh sách List all label */}
           <div style={{ marginBottom: 32 }}>
-            <h3 style={{ fontWeight: 500, fontSize: 18, marginBottom: 12 }}>
-              List all label
-            </h3>
-            {labels.length === 0 ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <h3 style={{ fontWeight: 500, fontSize: 18, margin: 0 }}>
+                List all label
+              </h3>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {selectedLabelIds.length > 0 && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Button
+                      size="slim"
+                      onClick={handleBulkActivate}
+                      tone="success"
+                      loading={bulkActionLoading}
+                      disabled={bulkActionLoading}
+                    >
+                      Activate ({selectedLabelIds.length})
+                    </Button>
+                    <Button
+                      size="slim"
+                      onClick={handleBulkDeactivate}
+                      tone="critical"
+                      loading={bulkActionLoading}
+                      disabled={bulkActionLoading}
+                    >
+                      Deactivate ({selectedLabelIds.length})
+                    </Button>
+                    <Button size="slim" onClick={() => setSelectedLabelIds([])}>
+                      Clear Selection
+                    </Button>
+                  </div>
+                )}
+                <Text as="span" variant="bodyMd" color="subdued">
+                  Showing {filteredLabels.length} of {labels.length} labels
+                </Text>
+              </div>
+            </div>
+            {filteredLabels.length > 0 && (
+              <div
+                style={{
+                  marginBottom: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedLabelIds.length === filteredLabels.length &&
+                    filteredLabels.length > 0
+                  }
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedLabelIds(
+                        filteredLabels.map((label) => label.id),
+                      );
+                    } else {
+                      setSelectedLabelIds([]);
+                    }
+                  }}
+                  style={{ margin: 0 }}
+                />
+                <Text as="span" variant="bodyMd">
+                  Select All ({filteredLabels.length})
+                </Text>
+              </div>
+            )}
+            {filteredLabels.length === 0 ? (
               <Text as="span" color="subdued">
-                Chưa có label nào.
+                {labels.length === 0
+                  ? "No label found."
+                  : "No label found."}
               </Text>
             ) : (
               <div
                 style={{ display: "flex", flexDirection: "column", gap: 16 }}
               >
-                {labels.map((label) => (
+                {filteredLabels.map((label) => (
                   <Card key={label.id} sectioned>
                     <div
                       style={{ display: "flex", alignItems: "center", gap: 16 }}
                     >
+                      <input
+                        type="checkbox"
+                        checked={selectedLabelIds.includes(label.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedLabelIds([
+                              ...selectedLabelIds,
+                              label.id,
+                            ]);
+                          } else {
+                            setSelectedLabelIds(
+                              selectedLabelIds.filter((id) => id !== label.id),
+                            );
+                          }
+                        }}
+                        style={{ margin: 0 }}
+                      />
                       <div
                         style={{
+                          position: "relative",
                           minWidth: 80,
                           minHeight: 32,
                           background: label.background,
@@ -340,6 +581,20 @@ export default function LabelsProductList() {
                         }}
                       >
                         {label.text}
+                        {/* Status indicator dot */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: -4,
+                            right: -4,
+                            width: 12,
+                            height: 12,
+                            borderRadius: "50%",
+                            background: label.active ? "#00a47c" : "#ccc",
+                            border: "2px solid #fff",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                          }}
+                        />
                       </div>
                       <div>
                         <div>
@@ -347,6 +602,15 @@ export default function LabelsProductList() {
                         </div>
                         <div>
                           <b>Condition</b> {label.condition}
+                        </div>
+                        <div>
+                          <b>Status:</b>{" "}
+                          <Badge
+                            status={label.active ? "success" : "critical"}
+                            progress={label.active ? "complete" : "incomplete"}
+                          >
+                            {label.active ? "Active" : "Inactive"}
+                          </Badge>
                         </div>
                         {label.condition === "specific" && (
                           <div>
@@ -366,6 +630,15 @@ export default function LabelsProductList() {
                       >
                         <Button
                           size="slim"
+                          onClick={() => handleToggleLabel(label.id)}
+                          tone={label.active ? "critical" : "success"}
+                          loading={loadingLabels.has(label.id)}
+                          disabled={loadingLabels.has(label.id)}
+                        >
+                          {label.active ? "Deactivate" : "Activate"}
+                        </Button>
+                        <Button
+                          size="slim"
                           onClick={() => handleEditLabel(label)}
                         >
                           Edit
@@ -374,6 +647,8 @@ export default function LabelsProductList() {
                           size="slim"
                           destructive
                           onClick={() => handleDeleteLabel(label.id)}
+                          loading={loadingLabels.has(label.id)}
+                          disabled={loadingLabels.has(label.id)}
                         >
                           Delete
                         </Button>
@@ -391,16 +666,16 @@ export default function LabelsProductList() {
       <Modal
         open={modalActive}
         onClose={closeCreateLabelModal}
-        title="Tạo Label mới"
+        title="Create new label"
         primaryAction={{
-          content: "Lưu Label",
+          content: "Save label",
           onAction: handleSaveLabel,
           loading: isSubmitting,
           disabled: !labelText.trim() || isSubmitting,
         }}
         secondaryActions={[
           {
-            content: "Hủy",
+            content: "Cancel",
             onAction: closeCreateLabelModal,
           },
         ]}
@@ -430,14 +705,14 @@ export default function LabelsProductList() {
                   {/* Config Panel */}
                   <div style={{ minWidth: 200 }}>
                     <TextField
-                      label="Tên Label"
+                      label="Name Label"
                       value={labelText}
                       onChange={setLabelText}
                       autoComplete="off"
-                      placeholder="Nhập tên label..."
+                      placeholder="Name label..."
                       error={
                         !labelText.trim() && labelText !== ""
-                          ? "Tên label không được để trống"
+                          ? "Name label is required"
                           : ""
                       }
                     />
@@ -452,7 +727,7 @@ export default function LabelsProductList() {
                       />
                       <div style={{ marginTop: 8 }}>
                         <TextField
-                          label="Mã màu (hex)"
+                          label="Color code (hex)"
                           value={labelHex}
                           onChange={(value) => {
                             setLabelHex(value);
@@ -550,11 +825,37 @@ export default function LabelsProductList() {
                             fontSize: 16,
                             boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
                             letterSpacing: 1,
+                            opacity: editLabel ? 1 : 0.8, // Show as slightly faded if not editing
                           }}
                         >
                           {labelText}
                         </div>
                       )}
+                      {/* Status indicator */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          background: "#fff",
+                          borderRadius: "50%",
+                          width: 20,
+                          height: 20,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "2px solid #ddd",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: editLabel ? "#00a47c" : "#ccc",
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -563,10 +864,10 @@ export default function LabelsProductList() {
             {activeTab === 1 && (
               <div style={{ maxWidth: 400 }}>
                 <ChoiceList
-                  title="Điều kiện áp dụng label"
+                  title="Condition apply label"
                   choices={[
-                    { label: "Tất cả sản phẩm", value: "all" },
-                    { label: "Chọn sản phẩm cụ thể", value: "specific" },
+                    { label: "All products", value: "all" },
+                    { label: "Choose specific products", value: "specific" },
                   ]}
                   selected={productCondition}
                   onChange={setProductCondition}

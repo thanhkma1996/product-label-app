@@ -92,3 +92,14 @@ subpath = "doproductlabel"
 # Lưu ý về lưu trữ databse trong prisma dev.sqlite
 - Khi tạo các label database sẽ được lữu trữ trong file dev.sqlite
 - Nguyên nhân tại sao khi đã tạo db ở máy A nhưng sao máy B chạy không có dữ liệu bởi vì đã thêm vào file .gitignore vì vậy khi máy B  DB trống nên sẽ không có dữ liệu đã tạo
+
+
+# Khi cap nhat database 
+- Can su dung cac cau lenh sau de cập nhật database
+```js
+   - npx prisma migrate status
+   - npx prisma db pull
+   - npx prisma generate
+   - npx prisma studio
+
+```

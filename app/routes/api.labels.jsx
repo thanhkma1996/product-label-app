@@ -46,6 +46,7 @@ export const loader = async ({ request }) => {
         position: true,
         condition: true,
         productIds: true,
+        active: true,
         createdAt: true,
       },
     });

@@ -12,6 +12,7 @@ export const loader = async ({ request }) => {
         background: true,
         position: true,
         condition: true,
+        active: true,
         productIds: true,
         createdAt: true
       }
