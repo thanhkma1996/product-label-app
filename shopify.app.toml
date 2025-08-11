@@ -3,7 +3,7 @@
 client_id = "d090f486b6ac47969dca38d6140e1e96"
 name = "DO Product Label"
 handle = "do-product-label"
-application_url = "https://tr-bread-tickets-office.trycloudflare.com"
+application_url = "https://calculator-indicate-tr-employed.trycloudflare.com"
 embedded = true
 
 [webhooks]
@@ -22,7 +22,11 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://tr-bread-tickets-office.trycloudflare.com/auth/callback", "https://tr-bread-tickets-office.trycloudflare.com/auth/shopify/callback", "https://tr-bread-tickets-office.trycloudflare.com/api/auth/callback"]
+redirect_urls = [
+  "https://calculator-indicate-tr-employed.trycloudflare.com/auth/callback",
+  "https://calculator-indicate-tr-employed.trycloudflare.com/auth/shopify/callback",
+  "https://calculator-indicate-tr-employed.trycloudflare.com/api/auth/callback"
+]
 
 [pos]
 embedded = false
@@ -33,7 +37,6 @@ include_config_on_deploy = true
 dev_store_url = "staging-digitaloutlook.myshopify.com"
 
 [app_proxy]
-url = "https://tr-bread-tickets-office.trycloudflare.com"
+url = "https://calculator-indicate-tr-employed.trycloudflare.com"
 prefix = "apps"
 subpath = "doproductlabel"
-
