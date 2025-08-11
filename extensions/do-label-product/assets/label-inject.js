@@ -4,7 +4,7 @@
   // Configuration - Multiple endpoints for fallback
   const API_ENDPOINTS = [
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
-    "https://tr-bread-tickets-office.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
+    "https://dreams-durham-hat-questions.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
   const LABEL_STYLES = {
     position: "absolute",
@@ -43,9 +43,60 @@
    * @returns {string|null} - Normalized product ID string or null if invalid
    */
   function normalizeProductId(id) {
-    // Convert to string and trim whitespace for consistent comparison
-    if (id === null || id === undefined) return null;
-    return id.toString().trim();
+    console.log(
+      `DO Label: Normalizing product ID:`,
+      id,
+      `(type: ${typeof id})`,
+    );
+
+    // Handle null/undefined
+    if (id === null || id === undefined) {
+      console.log(`DO Label: Product ID is null/undefined, returning null`);
+      return null;
+    }
+
+    // Convert to string and trim whitespace
+    let normalized = id.toString().trim();
+
+    // Handle empty string
+    if (normalized === "") {
+      console.log(`DO Label: Product ID is empty string, returning null`);
+      return null;
+    }
+
+    // Handle special cases
+    if (
+      normalized === "null" ||
+      normalized === "undefined" ||
+      normalized === "NaN"
+    ) {
+      console.log(
+        `DO Label: Product ID is special value "${normalized}", returning null`,
+      );
+      return null;
+    }
+
+    // Handle Shopify GID format: gid://shopify/Product/7138215985336
+    if (normalized.startsWith("gid://shopify/Product/")) {
+      const productId = normalized.split("/").pop();
+      console.log(
+        `DO Label: Shopify GID detected, extracted product ID: ${productId}`,
+      );
+      return productId;
+    }
+
+    // Handle other GID formats if needed
+    if (normalized.includes("://") && normalized.includes("/")) {
+      const parts = normalized.split("/");
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && !isNaN(lastPart)) {
+        console.log(`DO Label: GID format detected, extracted ID: ${lastPart}`);
+        return lastPart;
+      }
+    }
+
+    console.log(`DO Label: Normalized product ID: "${normalized}"`);
+    return normalized;
   }
 
   function getCurrentProductId() {
@@ -53,14 +104,31 @@
     let productId = null;
     let productHandle = null;
 
+    console.log("DO Label: Starting to find current product ID...");
+
     // PRIORITY 1: Get numeric product ID from product form (most reliable)
-    const formInput = document.querySelector('input[name="id"]');
+    const formInput = document.querySelector('input[name="product-id"]');
     if (formInput && formInput.value) {
       productId = formInput.value;
-      console.log("DO Label: Found product ID from form input:", productId);
+      console.log(
+        "DO Label: Found product ID from form input[name='product-id']:",
+        productId,
+      );
     }
 
-    // PRIORITY 2: Get numeric product ID from product JSON script
+    // PRIORITY 2: Get numeric product ID from custom product-id input
+    if (!productId) {
+      const customInput = document.querySelector('input[name="product-id"]');
+      if (customInput && customInput.value) {
+        productId = customInput.value;
+        console.log(
+          "DO Label: Found product ID from form input[name='product-id']:",
+          productId,
+        );
+      }
+    }
+
+    // PRIORITY 3: Get numeric product ID from product JSON script
     if (!productId) {
       const productJsonScript = document.querySelector(
         'script[type="application/json"][data-product-json]',
@@ -81,7 +149,7 @@
       }
     }
 
-    // PRIORITY 3: Get numeric product ID from data attributes
+    // PRIORITY 4: Get numeric product ID from data attributes
     if (!productId) {
       const productElement = document.querySelector("[data-product-id]");
       if (productElement) {
@@ -93,7 +161,7 @@
       }
     }
 
-    // PRIORITY 4: Get product handle from meta tag (fallback for numeric ID lookup)
+    // PRIORITY 5: Get product handle from meta tag (fallback for numeric ID lookup)
     if (!productId) {
       const metaUrl = document.querySelector(
         'meta[property="og:url"]',
@@ -110,7 +178,7 @@
       }
     }
 
-    // PRIORITY 5: Get product handle from URL (fallback for numeric ID lookup)
+    // PRIORITY 6: Get product handle from URL (fallback for numeric ID lookup)
     if (!productId && !productHandle) {
       const urlMatch = window.location.pathname.match(/products\/([^?]+)/);
       if (urlMatch) {
@@ -302,202 +370,245 @@
 
   /**
    * Determines whether a label should be shown for a specific product
+   * Supports two main conditions:
+   * 1. "all" or undefined: Show on all products
+   * 2. "specific": Show only on products listed in productIds
    *
-   * This function handles different types of product ID configurations:
-   * - Array of product IDs: [123, 456, 789]
-   * - JSON string: "[123, 456, 789]" or "123"
-   * - Single product ID: 123 or "123"
-   * - Product handles: "hygain-flexion", "product-name"
-   *
-   * @param {Object} label - The label configuration object
-   * @param {string|number} productId - The product ID or handle to check
-   * @returns {boolean} - True if label should be shown, false otherwise
+   * @param {Object} label - Label object with condition and productIds
+   * @param {string|number} productId - Current product ID or handle
+   * @returns {boolean} - Whether the label should be displayed
    */
   function shouldShowLabel(label, productId) {
-    // Check if label is active - if not active, don't show
-    // Default to true if active field is undefined (backward compatibility)
-    if (label.active === false) {
-      console.log("DO Label: Label is inactive, not showing:", label.text);
+    // Validate input parameters
+    if (!label || typeof label !== "object") {
+      console.warn("DO Label: Invalid label object provided");
       return false;
     }
 
-    // If active is undefined, treat as active (backward compatibility)
-    if (label.active === true) {
-      console.log(
-        "DO Label: Label active status undefined, treating as active (backward compatibility):",
-        label.text,
-      );
+    // Early return if label is inactive
+    if (label.active === false) {
+      console.log(`DO Label: Label "${label.text}" is inactive, not showing`);
+      return false;
     }
 
     // Normalize product ID for consistent comparison
     const normalizedProductId = normalizeProductId(productId);
     if (!normalizedProductId) {
-      console.warn("DO Label: Product ID is null or undefined");
+      console.warn(
+        `DO Label: Product ID is null or undefined for label "${label.text}"`,
+      );
       return false;
     }
 
-    // If no condition specified, show on all products
+    console.log(
+      `DO Label: Checking label "${label.text}" for product ${normalizedProductId}`,
+    );
+    console.log(
+      `DO Label: Label condition: "${label.condition}", productIds:`,
+      label.productIds,
+    );
+
+    // CONDITION 1: Show on all products (default behavior)
     if (
       !label.condition ||
       label.condition === "all" ||
       label.condition === ""
     ) {
       console.log(
-        "DO Label: Showing label on all products (no condition specified)",
+        `DO Label: Label "${label.text}" - showing on all products (condition: ${label.condition || "undefined"})`,
       );
       return true;
     }
 
-    // Handle specific product condition
+    // CONDITION 2: Show only on specific products
     if (label.condition === "specific") {
-      // Check if productIds exists and is not empty
-      if (
-        !label.productIds ||
-        label.productIds === "" ||
-        label.productIds === "[]"
-      ) {
-        console.warn(
-          "DO Label: Specific condition but no productIds specified",
-        );
-        return false;
-      }
+      const result = checkSpecificProductCondition(label, normalizedProductId);
+      console.log(
+        `DO Label: Label "${label.text}" - specific condition result: ${result}`,
+      );
+      return result;
+    }
 
-      // Case 1: productIds is already an array
-      if (Array.isArray(label.productIds)) {
-        const normalizedProductIds = label.productIds.map((id) =>
-          normalizeProductId(id),
-        );
-        const isIncluded = normalizedProductIds.includes(normalizedProductId);
+    // For any other condition type, show by default (extensible for future conditions)
+    console.log(
+      `DO Label: Label "${label.text}" - unknown condition "${label.condition}", showing by default`,
+    );
+    return true;
+  }
 
-        // Additional check: if current product is a handle (non-numeric),
-        // also check if any productIds match as handles
-        let handleMatch = false;
-        if (!isIncluded && !/^\d+$/.test(normalizedProductId)) {
-          // Current product is a handle, check if any productIds are handles
-          handleMatch = label.productIds.some((id) => {
-            const normalizedId = normalizeProductId(id);
-            return (
-              normalizedId === normalizedProductId &&
-              !/^\d+$/.test(normalizedId)
-            );
-          });
-        }
+  /**
+   * Helper function to check if a product matches specific product condition
+   * @param {Object} label - Label object with productIds
+   * @param {string} normalizedProductId - Normalized current product ID
+   * @returns {boolean} - Whether the product matches the condition
+   */
+  function checkSpecificProductCondition(label, normalizedProductId) {
+    console.log(
+      `DO Label: Checking specific condition for label "${label.text}"`,
+    );
+    console.log(`DO Label: Current product ID: ${normalizedProductId}`);
+    console.log(`DO Label: Label productIds:`, label.productIds);
+    console.log(`DO Label: productIds type:`, typeof label.productIds);
 
-        const finalResult = isIncluded || handleMatch;
-        console.log(
-          `DO Label: Product ${normalizedProductId} ${finalResult ? "found" : "not found"} in productIds array:`,
-          {
-            productIds: label.productIds,
-            isNumericMatch: isIncluded,
-            isHandleMatch: handleMatch,
-            finalResult: finalResult,
-          },
-        );
-        return finalResult;
-      }
-
-      // Case 2: productIds is a JSON string (could be array or single value)
-      if (typeof label.productIds === "string") {
-        try {
-          const parsedProductIds = JSON.parse(label.productIds);
-          if (Array.isArray(parsedProductIds)) {
-            // JSON string contains an array of product IDs
-            const normalizedParsedIds = parsedProductIds.map((id) =>
-              normalizeProductId(id),
-            );
-            const isIncluded =
-              normalizedParsedIds.includes(normalizedProductId);
-
-            // Additional handle check for JSON arrays
-            let handleMatch = false;
-            if (!isIncluded && !/^\d+$/.test(normalizedProductId)) {
-              handleMatch = parsedProductIds.some((id) => {
-                const normalizedId = normalizeProductId(id);
-                return (
-                  normalizedId === normalizedProductId &&
-                  !/^\d+$/.test(normalizedId)
-                );
-              });
-            }
-
-            const finalResult = isIncluded || handleMatch;
-            console.log(
-              `DO Label: Product ${normalizedProductId} ${finalResult ? "found" : "not found"} in parsed productIds array:`,
-              {
-                parsedIds: parsedProductIds,
-                isNumericMatch: isIncluded,
-                isHandleMatch: handleMatch,
-                finalResult: finalResult,
-              },
-            );
-            return finalResult;
-          } else {
-            // JSON string contains a single product ID (not an array)
-            const normalizedParsedId = normalizeProductId(parsedProductIds);
-            const isMatch = normalizedParsedId === normalizedProductId;
-            console.log(
-              `DO Label: Parsed productIds is not array, treating as single ID: ${isMatch ? "match" : "no match"}`,
-              {
-                parsed: normalizedParsedId,
-                current: normalizedProductId,
-                isNumeric: /^\d+$/.test(normalizedProductId),
-                isHandle: !/^\d+$/.test(normalizedProductId),
-              },
-            );
-            return isMatch;
-          }
-        } catch (error) {
-          // JSON parsing failed - treat the string as a single product ID
-          const normalizedLabelId = normalizeProductId(label.productIds);
-          const isMatch = normalizedLabelId === normalizedProductId;
-          console.log(
-            `DO Label: JSON parse failed, treating as single ID: ${isMatch ? "match" : "no match"}`,
-            {
-              labelId: normalizedLabelId,
-              productId: normalizedProductId,
-              isNumeric: /^\d+$/.test(normalizedProductId),
-              isHandle: !/^\d+$/.test(normalizedProductId),
-            },
-          );
-          return isMatch;
-        }
-      }
-
-      // Case 3: productIds is a number (single product ID)
-      if (typeof label.productIds === "number") {
-        const normalizedLabelId = normalizeProductId(label.productIds);
-        const isMatch = normalizedLabelId === normalizedProductId;
-        console.log(
-          `DO Label: Product ${normalizedProductId} ${isMatch ? "match" : "no match"} with numeric productIds:`,
-          {
-            labelId: normalizedLabelId,
-            productId: normalizedProductId,
-            isNumeric: /^\d+$/.test(normalizedProductId),
-            isHandle: !/^\d+$/.test(normalizedProductId),
-          },
-        );
-        return isMatch;
-      }
-
-      // Unsupported format - hide label
+    // Validate productIds exists and is not empty
+    if (
+      !label.productIds ||
+      label.productIds === "" ||
+      label.productIds === "[]" ||
+      label.productIds === "null" ||
+      label.productIds === "undefined"
+    ) {
       console.warn(
-        "DO Label: productIds is not in expected format (expected: array, string, or number)",
-        label.productIds,
+        `DO Label: Label "${label.text}" - specific condition but no productIds specified`,
       );
       return false;
     }
 
-    // For any other condition type, show by default (can be extended later)
+    // Convert productIds to array for consistent processing
+    const productIdsArray = normalizeProductIdsToArray(label.productIds);
+    console.log(`DO Label: Normalized productIds array:`, productIdsArray);
+
+    if (!productIdsArray || productIdsArray.length === 0) {
+      console.warn(
+        `DO Label: Label "${label.text}" - productIds array is empty after normalization`,
+      );
+      return false;
+    }
+
+    // Check if current product ID is in the list with detailed logging
+    console.log(`DO Label: Starting product ID comparison...`);
+    let matchFound = false;
+
+    for (let i = 0; i < productIdsArray.length; i++) {
+      const id = productIdsArray[i];
+      const normalizedId = normalizeProductId(id);
+
+      console.log(`DO Label: Comparing [${i + 1}/${productIdsArray.length}]`);
+      console.log(`DO Label:   Label productId: ${id} (type: ${typeof id})`);
+      console.log(`DO Label:   Normalized label ID: ${normalizedId}`);
+      console.log(`DO Label:   Current product ID: ${normalizedProductId}`);
+      console.log(
+        `DO Label:   Types match: ${typeof normalizedId === typeof normalizedProductId}`,
+      );
+
+      // Try exact match first
+      if (normalizedId === normalizedProductId) {
+        console.log(`DO Label:   ✅ EXACT MATCH FOUND!`);
+        matchFound = true;
+        break;
+      }
+
+      // Try string comparison if types don't match
+      if (normalizedId.toString() === normalizedProductId.toString()) {
+        console.log(`DO Label:   ✅ STRING MATCH FOUND!`);
+        matchFound = true;
+        break;
+      }
+
+      // Try numeric comparison if both are numbers
+      if (!isNaN(normalizedId) && !isNaN(normalizedProductId)) {
+        if (parseInt(normalizedId) === parseInt(normalizedProductId)) {
+          console.log(`DO Label:   ✅ NUMERIC MATCH FOUND!`);
+          matchFound = true;
+          break;
+        }
+      }
+
+      // Try Shopify GID comparison
+      if (
+        normalizedId.startsWith("gid://shopify/Product/") ||
+        normalizedProductId.startsWith("gid://shopify/Product/")
+      ) {
+        const id1 = normalizeProductId(normalizedId);
+        const id2 = normalizeProductId(normalizedProductId);
+        if (id1 === id2) {
+          console.log(`DO Label:   ✅ SHOPIFY GID MATCH FOUND!`);
+          matchFound = true;
+          break;
+        }
+      }
+
+      console.log(`DO Label:   ✗ No match`);
+    }
+
     console.log(
-      `DO Label: Unknown condition "${label.condition}" - showing by default`,
+      `DO Label: Label "${label.text}" - final match result: ${matchFound}`,
     );
-    return true;
+    return matchFound;
+  }
+
+  /**
+   * Helper function to normalize productIds to array format
+   * Handles various input formats: array, JSON string, single value
+   * @param {any} productIds - Product IDs in various formats
+   * @returns {Array|null} - Normalized array of product IDs or null if invalid
+   */
+  function normalizeProductIdsToArray(productIds) {
+    console.log(`DO Label: Normalizing productIds:`, productIds);
+    console.log(`DO Label: productIds type:`, typeof productIds);
+
+    // Case 1: Already an array
+    if (Array.isArray(productIds)) {
+      const filtered = productIds.filter((id) => id != null); // Filter out null/undefined values
+      console.log(`DO Label: Input is array, filtered result:`, filtered);
+      return filtered;
+    }
+
+    // Case 2: JSON string
+    if (typeof productIds === "string") {
+      console.log(`DO Label: Input is string: "${productIds}"`);
+
+      // Handle empty or invalid JSON strings
+      if (productIds.trim() === "" || productIds === "[]") {
+        console.log(
+          `DO Label: Empty string or empty array string, returning null`,
+        );
+        return null;
+      }
+
+      try {
+        const parsed = JSON.parse(productIds);
+        console.log(`DO Label: JSON parsed successfully:`, parsed);
+
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((id) => id != null);
+          console.log(`DO Label: Parsed array, filtered result:`, filtered);
+          return filtered;
+        } else if (parsed != null) {
+          console.log(`DO Label: Parsed single value, returning as array:`, [
+            parsed,
+          ]);
+          return [parsed];
+        }
+        console.log(`DO Label: Parsed value is null, returning null`);
+        return null;
+      } catch (error) {
+        console.log(
+          `DO Label: JSON parse failed, treating as single product ID string`,
+        );
+        // Treat as single product ID string if JSON parsing fails
+        const result = productIds.trim() ? [productIds.trim()] : null;
+        console.log(`DO Label: Single ID result:`, result);
+        return result;
+      }
+    }
+
+    // Case 3: Number or other primitive
+    if (productIds != null && productIds !== "") {
+      console.log(`DO Label: Input is primitive, returning as array:`, [
+        productIds,
+      ]);
+      return [productIds];
+    }
+
+    console.log(`DO Label: Input is null/undefined/empty, returning null`);
+    return null;
   }
 
   function injectLabels(labels, productId) {
     // Find product image container with more comprehensive selectors
     const productImageContainer =
-      // Dawn theme - try most specific first
+      // Dawn theme
       document.querySelector(".product__media-list .product__media-item") ||
       document.querySelector(".product__media-list") ||
       document.querySelector(".product__media-container") ||
@@ -612,105 +723,8 @@
     return [];
   }
 
-  // Test function for debugging label display logic
-  function testLabelLogic() {
-    if (window.DO_LABEL_DEBUG) {
-      console.group("DO Label: Testing Label Logic");
-
-      // Test case 1: Array of product IDs (active)
-      const testLabel1 = {
-        condition: "specific",
-        productIds: [123, 456, 789],
-        text: "Test Array",
-        active: true,
-      };
-      console.log("Test 1 - Array [123, 456, 789] (active):", {
-        "Product 123": shouldShowLabel(testLabel1, 123),
-        "Product 456": shouldShowLabel(testLabel1, 456),
-        "Product 999": shouldShowLabel(testLabel1, 999),
-      });
-
-      // Test case 2: Array of product IDs (inactive)
-      const testLabel1Inactive = {
-        condition: "specific",
-        productIds: [123, 456, 789],
-        text: "Test Array Inactive",
-        active: false,
-      };
-      console.log("Test 1b - Array [123, 456, 789] (inactive):", {
-        "Product 123": shouldShowLabel(testLabel1Inactive, 123),
-        "Product 456": shouldShowLabel(testLabel1Inactive, 456),
-        "Product 999": shouldShowLabel(testLabel1Inactive, 999),
-      });
-
-      // Test case 3: JSON string array (active)
-      const testLabel2 = {
-        condition: "specific",
-        productIds: "[123, 456, 789]",
-        text: "Test JSON Array",
-        active: true,
-      };
-      console.log('Test 2 - JSON String "[123, 456, 789]" (active):', {
-        "Product 123": shouldShowLabel(testLabel2, 123),
-        "Product 456": shouldShowLabel(testLabel2, 456),
-        "Product 999": shouldShowLabel(testLabel2, 999),
-      });
-
-      // Test case 4: Single product ID (active)
-      const testLabel3 = {
-        condition: "specific",
-        productIds: 123,
-        text: "Test Single ID",
-        active: true,
-      };
-      console.log("Test 3 - Single ID 123 (active):", {
-        "Product 123": shouldShowLabel(testLabel3, 123),
-        "Product 456": shouldShowLabel(testLabel3, 456),
-      });
-
-      // Test case 5: JSON string single ID (active)
-      const testLabel4 = {
-        condition: "specific",
-        productIds: "123",
-        text: "Test JSON Single ID",
-        active: true,
-      };
-      console.log('Test 4 - JSON String "123" (active):', {
-        "Product 123": shouldShowLabel(testLabel4, 123),
-        "Product 456": shouldShowLabel(testLabel4, 456),
-      });
-
-      // Test case 6: All products (active)
-      const testLabel5 = {
-        condition: "all",
-        text: "Test All Products",
-        active: true,
-      };
-      console.log("Test 5 - All Products (active):", {
-        "Product 123": shouldShowLabel(testLabel5, 123),
-        "Product 456": shouldShowLabel(testLabel5, 456),
-      });
-
-      // Test case 7: All products (inactive)
-      const testLabel5Inactive = {
-        condition: "all",
-        text: "Test All Products Inactive",
-        active: false,
-      };
-      console.log("Test 5b - All Products (inactive):", {
-        "Product 123": shouldShowLabel(testLabel5Inactive, 123),
-        "Product 456": shouldShowLabel(testLabel5Inactive, 456),
-      });
-
-      console.groupEnd();
-    }
-  }
-
   // Main execution
   function init() {
-    // Run test cases if debug mode is enabled
-    testLabelLogic();
-
     const onProductPage =
       /\/products\//.test(window.location.pathname) || !!getCurrentProductId();
     const onCollectionPage = isCollectionPage();
