@@ -1,20 +1,9 @@
-#1 Những lỗi thường gặp khi chỉnh sửa database trong schema.prisma và k update chạy npx prisma studio
+# Hướng dẫn start app 
+- 1. Clone dự án from bitbucket: https://bitbucket.org/digitaloutlook/demo-shopify-app/src/feature_product_label/
+- 2. Chạy câu lệnh: npm install và shopify app dev
+- 3. Trong trường hợp chạy có lỗi liên quan tới authentication cần chạy câu lệnh: shopify auth list / shopify login 
+- 4. Cập nhật manual: API_ENDPOINTS trong các file label-inject/collection-label/product-label, lí do cần bypass qua store development đang có mật khâu
 
-```js 
-Invalid `STUDIO_EMBED_BUILD<"u"&&STUDIO_EMBED_BUILD?" ```
-
-Cần chạy các lệnh sau để fix lối:
-```js 
-rm -rf node_modules/.prisma
-rm -rf node_modules
-rm -f package-lock.json # hoặc yarn.lock nếu dùng yarn
-
-npm install
-npm install prisma@latest @prisma/client@latest
-npx prisma generate
-npx prisma migrate dev
-npx prisma studio
-```
 
 # Hiển thị Labels - Giải pháp vượt qua Password Protection
 
@@ -28,23 +17,12 @@ Khi development store có password protection, App Proxy không thể hoạt đ�
 
 ## Giải pháp đã triển khai:
 
-### ✅ 1. Fallback System với Multiple Endpoints
 
-Script sẽ thử các endpoint theo thứ tự:
+### ✅ Make Public API Endpoint
 
 1. `/apps/doproductlabel/labels` - App Proxy (khi không có password protection)
 2. `https://tune-lakes-order-apparently.trycloudflare.com/apps/doproductlabel/labels` - Direct API (vượt qua password protection)
 
-### ✅ 2. Public API Endpoint
-
-- Tạo endpoint `/api/labels/public` không cần authentication
-- Có thể truy cập trực tiếp từ bất kỳ domain nào
-- Bypass hoàn toàn password protection
-
-### ✅ 3. CORS Headers
-
-- Đã set đúng CORS headers cho cross-origin requests
-- Hỗ trợ cả GET và OPTIONS requests
 
 ## Cách hoạt động:
 
@@ -77,7 +55,7 @@ Labels sẽ hiển thị ngay cả khi store có password protection nhờ fallb
 // Test API endpoints
 https://tune-lakes-order-apparently.trycloudflare.com/apps/doproductlabel/labels => Create cloudflare Tunnel free
 
-# Lưu ý về trycloudfare
+### Lưu ý về trycloudfare
 ```js [app_proxy]
 url = "https://repeated-elementary-extras-stroke.trycloudflare.com"
 prefix = "apps"
@@ -89,12 +67,12 @@ subpath = "doproductlabel"
 - Đặc điểm của trycloudflare.com: URL sẽ được tạo ngẫu nhiên mỗi lần chạy npm run dev CLI
 
 
-# Lưu ý về lưu trữ databse trong prisma dev.sqlite
+### Lưu ý về lưu trữ databse trong prisma dev.sqlite
 - Khi tạo các label database sẽ được lữu trữ trong file dev.sqlite
 - Nguyên nhân tại sao khi đã tạo db ở máy A nhưng sao máy B chạy không có dữ liệu bởi vì đã thêm vào file .gitignore vì vậy khi máy B  DB trống nên sẽ không có dữ liệu đã tạo
 
 
-# Khi cap nhat database 
+### Khi cap nhat database 
 - Can su dung cac cau lenh sau de cập nhật database
 ```js
    - npx prisma migrate status
@@ -103,3 +81,40 @@ subpath = "doproductlabel"
    - npx prisma studio
 
 ```
+
+### Một số lỗi hay gặp
+- Mỗi số lỗi liên quan khi start app GraphiQL... cần chạy: shopify auth list để login auth và chạy lại
+
+- Những lỗi thường gặp khi chỉnh sửa database trong schema.prisma và k update chạy npx prisma studio
+
+```js 
+rm -rf node_modules/.prisma
+rm -rf node_modules
+rm -f package-lock.json # hoặc yarn.lock nếu dùng yarn
+
+npm install
+npm install prisma@latest @prisma/client@latest
+npx prisma generate
+npx prisma migrate dev
+npx prisma studio
+```
+
+File .env đã tồn tại nhưng bị ẩn khỏi workspace:
+File .env thực sự đã được tạo bởi Shopify CLI khi bạn chạy shopify app env pull
+File này bị ẩn khỏi workspace vì nó được liệt kê trong .gitignore 
+Shopify CLI tự động quản lý biến môi trường thay vì yêu cầu bạn tạo file .env thủ công
+
+=> Khi bạn chạy shopify app dev, CLI sẽ tự động:
+Tạo file .env với các biến cần thiết
+Lấy thông tin từ shopify.app.toml 
+Cấu hình các biến môi trường cần thiết
+=> File shopify.app.toml chứa:
+client_id (tương đương SHOPIFY_API_KEY)
+application_url (tương đương SHOPIFY_APP_URL)
+scopes (tương đương SCOPES)
+
+## Lưu ý 2 file database
+- Trong project có 2 file code giống nhau đều kết nối db thông qua prisma orm là db.server.js & prisma.server.js tuy nhiên không thể xóa 1 trong 2 bởi bị
+
++ db.server.js = Synchronous context (webhooks, server setup) => Dùng cho Oauth
++ prisma.server.js = Dynamic context (app routes, lazy loading) => Tương tác dữ liệu trong app

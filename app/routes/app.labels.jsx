@@ -11,11 +11,8 @@ import {
   Layout,
   Button,
   TextField,
-  EmptyState,
   TextContainer,
-  Banner,
   Modal,
-  ColorPicker,
   Card,
   Select,
   Tabs,
@@ -55,7 +52,7 @@ export const loader = async ({ request }) => {
     }
   `;
     const variables = {
-      first: 12,
+      first: 100,
       after,
       query: search ? `title:*${search}*` : undefined,
     };
@@ -269,6 +266,11 @@ export default function LabelsProductList() {
     }
   }, [fetcher.state, fetcher.data]);
 
+  // Debug: Track labelBg changes
+  useEffect(() => {
+    console.log("labelBg state changed:", labelBg);
+  }, [labelBg]);
+
   // Khi submit chỉnh sửa label
   const handleEditLabel = (label) => {
     setEditLabel(label);
@@ -428,6 +430,7 @@ export default function LabelsProductList() {
             <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 16 }}>
               Product Label Management
             </h2>
+            <p style={{ textAlign: "right", marginBottom: 20 }}>Develop by Thanh Nguyen</p>
           </TextContainer>
           <div
             style={{
@@ -499,9 +502,6 @@ export default function LabelsProductList() {
                     >
                       Deactivate ({selectedLabelIds.length})
                     </Button>
-                    {/* <Button size="slim" onClick={() => setSelectedLabelIds([])}>
-                      Clear Selection
-                    </Button> */}
                   </div>
                 )}
                 <Text as="span" variant="bodyMd" color="subdued">
@@ -611,19 +611,46 @@ export default function LabelsProductList() {
                         </div>
                         <div>
                           <b>Status:</b>{" "}
-                          <Badge
-                            status={label.active ? "success" : "critical"}
-                            progress={label.active ? "complete" : "incomplete"}
+                          <span style={{
+                            backgroundColor: label.active ? "#00a47c" : "#ccc",
+                            color: "#fff",
+                            borderRadius: "4px",
+                            padding: "2px 8px",
+                            fontSize: "12px",
+                            maxWidth: "max-content",
+                          }}
                           >
                             {label.active ? "Active" : "Inactive"}
-                          </Badge>
+                          </span>
                         </div>
                         {label.condition === "specific" && (
                           <div>
-                            <b>Product IDs:</b>{" "}
-                            {Array.isArray(label.productIds)
-                              ? label.productIds.join(", ")
-                              : ""}
+                            <b>Products:</b>{" "}
+                            {Array.isArray(label.productIds) && label.productIds.length > 0 ? (
+                              <div style={{ marginTop: 4 }}>
+                                {label.productIds.map((productId) => {
+                                  const product = products.find(p => p.id === productId);
+                                  return product ? (
+                                    <div key={productId} style={{ 
+                                      display: 'inline-block', 
+                                      background: '#f6f6f7', 
+                                      padding: '2px 8px', 
+                                      borderRadius: '4px', 
+                                      margin: '2px',
+                                      fontSize: '12px'
+                                    }}>
+                                      {product.title}
+                                    </div>
+                                  ) : (
+                                    <span key={productId} style={{ color: '#999' }}>
+                                      {productId} (not found)
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#999' }}>No products selected</span>
+                            )}
                           </div>
                         )}
                         <div style={{ fontSize: 12, color: "#888" }}>
@@ -723,14 +750,25 @@ export default function LabelsProductList() {
                       }
                     />
                     <div style={{ marginTop: 16 }}>
-                      <ColorPicker
+                      {/* <ColorPicker
                         onChange={(color) => {
+                          console.log("ColorPicker onChange called with:", color);
                           setLabelBg(color);
-                          setLabelHex(hexFromRgb(color));
+                          const hexColor = hexFromRgb(color);
+                          console.log("Converted to hex:", hexColor);
+                          setLabelHex(hexColor);
+                        }}
+                        onColorChange={(color) => {
+                          console.log("ColorPicker onColorChange called with:", color);
+                          setLabelBg(color);
+                          const hexColor = hexFromRgb(color);
+                          console.log("Converted to hex:", hexColor);
+                          setLabelHex(hexColor);
                         }}
                         color={labelBg}
                         allowAlpha={false}
-                      />
+                        fullWidth
+                      /> */}
                       <div style={{ marginTop: 8 }}>
                         <TextField
                           label="Color code (hex)"
@@ -748,6 +786,25 @@ export default function LabelsProductList() {
                           autoComplete="off"
                           placeholder="#008060"
                         />
+                        <div style={{ marginTop: 8 }}>
+                          <label style={{ display: "block", marginBottom: 4, fontSize: "14px" }}>
+                            Color picker:
+                          </label>
+                          <input
+                            type="color"
+                            value={labelHex}
+                            onChange={(e) => {
+                              console.log("HTML color input changed:", e.target.value);
+                              setLabelHex(e.target.value);
+                              const hex = e.target.value.replace(/^#/, "");
+                              const r = parseInt(hex.slice(0, 2), 16);
+                              const g = parseInt(hex.slice(2, 4), 16);
+                              const b = parseInt(hex.slice(4, 6), 16);
+                              setLabelBg({ red: r, green: g, blue: b });
+                            }}
+                            style={{ width: "100%", height: "40px", border: "1px solid #ddd", borderRadius: "4px" }}
+                          />
+                        </div>
                       </div>
                     </div>
                     <div style={{ marginTop: 16 }}>
@@ -823,7 +880,11 @@ export default function LabelsProductList() {
                                     left: "50%",
                                     transform: "translateX(-50%)",
                                   }),
-                            background: hexFromRgb(labelBg),
+                            background: (() => {
+                              const bgColor = hexFromRgb(labelBg);
+                              console.log("Preview background color:", bgColor, "from labelBg:", labelBg);
+                              return bgColor;
+                            })(),
                             color: "#fff",
                             padding: "6px 18px",
                             borderRadius: 20,
