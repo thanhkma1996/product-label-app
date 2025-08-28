@@ -35,4 +35,8 @@ model Label {
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  
+  // Rule configuration fields
+  ruleType   String?  // 'specific', 'special_price', 'new_arrival'
+  ruleConfig Json?    // Configuration for rules (e.g., date ranges, price ranges)
 }

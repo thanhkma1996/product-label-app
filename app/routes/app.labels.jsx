@@ -42,6 +42,15 @@ export const loader = async ({ request }) => {
             id
             title
             featuredImage { url }
+            createdAt
+            variants(first: 1) {
+              edges {
+                node {
+                  price
+                  compareAtPrice
+                }
+              }
+            }
           }
         }
         pageInfo {
@@ -61,6 +70,10 @@ export const loader = async ({ request }) => {
     const products = data.data.products.edges.map((edge) => ({
       ...edge.node,
       cursor: edge.cursor,
+      price: edge.node.variants?.edges?.[0]?.node?.price || "0",
+      compareAtPrice:
+        edge.node.variants?.edges?.[0]?.node?.compareAtPrice || null,
+      createdAt: edge.node.createdAt,
     }));
     const { hasNextPage, endCursor } = data.data.products.pageInfo;
     // Lấy tất cả label từ Prisma
@@ -92,6 +105,9 @@ export const action = async ({ request }) => {
       const position = formData.get("position") || "bottom-center";
       const condition = formData.get("condition");
       const productIds = formData.getAll("productIds");
+      const ruleType = formData.get("ruleType");
+      const ruleConfig = formData.get("ruleConfig");
+
       const updated = await prisma.label.update({
         where: { id },
         data: {
@@ -100,6 +116,8 @@ export const action = async ({ request }) => {
           position,
           condition,
           productIds: condition === "specific" ? productIds : [],
+          ruleType,
+          ruleConfig: ruleConfig ? JSON.parse(ruleConfig) : null,
         },
       });
       return { success: true, updated };
@@ -143,6 +161,8 @@ export const action = async ({ request }) => {
     const position = formData.get("position") || "bottom-center";
     const condition = formData.get("condition"); // 'all' or 'specific'
     const productIds = formData.getAll("productIds"); // For 'specific' condition
+    const ruleType = formData.get("ruleType");
+    const ruleConfig = formData.get("ruleConfig");
 
     console.log("Action received:", {
       text,
@@ -150,6 +170,8 @@ export const action = async ({ request }) => {
       position,
       condition,
       productIds,
+      ruleType,
+      ruleConfig,
     });
 
     if (!text || !background) {
@@ -164,6 +186,8 @@ export const action = async ({ request }) => {
         position,
         condition: condition,
         productIds: condition === "specific" ? productIds : undefined,
+        ruleType,
+        ruleConfig: ruleConfig ? JSON.parse(ruleConfig) : null,
         active: true, // Default to active
       },
     });
@@ -219,6 +243,12 @@ export default function LabelsProductList() {
   const [productSearchTerm, setProductSearchTerm] = useState(""); // For product search
   const [debouncedProductSearch, setDebouncedProductSearch] = useState(""); // Debounced search term
 
+  // New rule type states
+  const [ruleType, setRuleType] = useState("specific"); // "specific", "special_price", "new_arrival"
+  const [specialPriceFrom, setSpecialPriceFrom] = useState("");
+  const [specialPriceTo, setSpecialPriceTo] = useState("");
+  const [newArrivalDays, setNewArrivalDays] = useState(30);
+
   const shop = loaderData.shop;
   const isSubmitting = navigation.state === "submitting";
   const isFetcherSubmitting = fetcher.state === "submitting";
@@ -253,6 +283,10 @@ export default function LabelsProductList() {
       setSelectedProductIds([]);
       setEditLabel(null); // Reset edit state on success
       setSelectedLabelIds([]); // Reset selected labels on success
+      setRuleType("specific");
+      setSpecialPriceFrom("");
+      setSpecialPriceTo("");
+      setNewArrivalDays(30);
 
       // Reset all loading states on success
       setLoadingLabels(new Set());
@@ -289,10 +323,38 @@ export default function LabelsProductList() {
     setLabelBg(hexToRgb(label.background));
     setLabelHex(label.background);
     setLabelPosition(label.position);
-    setProductCondition([label.condition]);
+
+    // Set condition and rule type
+    if (
+      label.ruleType === "special_price" ||
+      label.ruleType === "new_arrival"
+    ) {
+      setProductCondition([label.ruleType]);
+      setRuleType(label.ruleType);
+    } else if (label.condition === "specific") {
+      setProductCondition(["specific"]);
+      setRuleType(label.ruleType || "specific");
+    } else {
+      setProductCondition(["all"]);
+      setRuleType("all");
+    }
+
     setSelectedProductIds(
       Array.isArray(label.productIds) ? label.productIds : [],
     );
+
+    // Set rule configuration
+    if (label.ruleType === "special_price" && label.ruleConfig) {
+      setSpecialPriceFrom(label.ruleConfig.from?.toString() || "");
+      setSpecialPriceTo(label.ruleConfig.to?.toString() || "");
+    } else if (label.ruleType === "new_arrival" && label.ruleConfig) {
+      setNewArrivalDays(label.ruleConfig.days || 30);
+    } else {
+      setSpecialPriceFrom("");
+      setSpecialPriceTo("");
+      setNewArrivalDays(30);
+    }
+
     setModalActive(true);
   };
   // Khi submit xóa label
@@ -363,16 +425,101 @@ export default function LabelsProductList() {
     if (!labelText.trim()) {
       return;
     }
+
+    // Validate rule configurations
+    if (productCondition[0] === "special_price") {
+      if (!specialPriceFrom || !specialPriceTo) {
+        alert("Please enter both price range values for special price rule");
+        return;
+      }
+      if (parseFloat(specialPriceFrom) > parseFloat(specialPriceTo)) {
+        alert("Price 'from' must be less than or equal to price 'to'");
+        return;
+      }
+    }
+
+    if (productCondition[0] === "new_arrival") {
+      if (!newArrivalDays || newArrivalDays < 1 || newArrivalDays > 365) {
+        alert(
+          "Please enter a valid number of days (1-365) for new arrival rule",
+        );
+        return;
+      }
+    }
+
+    if (productCondition[0] === "specific" && ruleType === "special_price") {
+      if (!specialPriceFrom || !specialPriceTo) {
+        alert("Please enter both price range values for special price rule");
+        return;
+      }
+      if (parseFloat(specialPriceFrom) > parseFloat(specialPriceTo)) {
+        alert("Price 'from' must be less than or equal to price 'to'");
+        return;
+      }
+    }
+
+    if (productCondition[0] === "specific" && ruleType === "new_arrival") {
+      if (!newArrivalDays || newArrivalDays < 1 || newArrivalDays > 365) {
+        alert(
+          "Please enter a valid number of days (1-365) for new arrival rule",
+        );
+        return;
+      }
+    }
+
+    if (
+      productCondition[0] === "specific" &&
+      ruleType === "specific" &&
+      selectedProductIds.length === 0
+    ) {
+      alert("Please select at least one product for manual selection");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("text", labelText);
     formData.append("background", hexFromRgb(labelBg));
     formData.append("position", labelPosition);
+
+    // Handle different rule types
     if (productCondition[0] === "all") {
       formData.append("condition", "all");
+      formData.append("ruleType", "all");
+    } else if (productCondition[0] === "special_price") {
+      formData.append("condition", "rule_based");
+      formData.append("ruleType", "special_price");
+      const ruleConfig = {
+        from: parseFloat(specialPriceFrom) || 0,
+        to: parseFloat(specialPriceTo) || 999999,
+      };
+      formData.append("ruleConfig", JSON.stringify(ruleConfig));
+    } else if (productCondition[0] === "new_arrival") {
+      formData.append("condition", "rule_based");
+      formData.append("ruleType", "new_arrival");
+      const ruleConfig = {
+        days: parseInt(newArrivalDays) || 30,
+      };
+      formData.append("ruleConfig", JSON.stringify(ruleConfig));
     } else {
       formData.append("condition", "specific");
-      selectedProductIds.forEach((id) => formData.append("productIds", id));
+      formData.append("ruleType", ruleType);
+
+      if (ruleType === "specific") {
+        selectedProductIds.forEach((id) => formData.append("productIds", id));
+      } else if (ruleType === "special_price") {
+        const ruleConfig = {
+          from: parseFloat(specialPriceFrom) || 0,
+          to: parseFloat(specialPriceTo) || 999999,
+        };
+        formData.append("ruleConfig", JSON.stringify(ruleConfig));
+      } else if (ruleType === "new_arrival") {
+        const ruleConfig = {
+          days: parseInt(newArrivalDays) || 30,
+        };
+        formData.append("ruleConfig", JSON.stringify(ruleConfig));
+      }
     }
+
     if (editLabel) {
       formData.append("_action", "edit");
       formData.append("id", editLabel.id);
@@ -405,6 +552,10 @@ export default function LabelsProductList() {
     setEditLabel(null);
     setProductSearchTerm(""); // Reset search term
     setDebouncedProductSearch(""); // Reset debounced search term
+    setRuleType("specific");
+    setSpecialPriceFrom("");
+    setSpecialPriceTo("");
+    setNewArrivalDays(30);
   };
   // Modal logic
   const openCreateLabelModal = () => {
@@ -419,6 +570,10 @@ export default function LabelsProductList() {
     setModalActive(true);
     setProductSearchTerm(""); // Reset search term
     setDebouncedProductSearch(""); // Reset debounced search term
+    setRuleType("specific");
+    setSpecialPriceFrom("");
+    setSpecialPriceTo("");
+    setNewArrivalDays(30);
   };
   // Helper: hex to rgb
   function hexToRgb(hex) {
@@ -624,8 +779,41 @@ export default function LabelsProductList() {
                           <b>Position</b> {label.position}
                         </div>
                         <div>
-                          <b>Condition</b> {label.condition}
+                          <b>Condition</b>{" "}
+                          {label.condition === "rule_based" ? (
+                            <span style={{ color: "#666" }}>
+                              {label.ruleType === "special_price"
+                                ? "Special Price Rule"
+                                : label.ruleType === "new_arrival"
+                                  ? "New Arrival Rule"
+                                  : "Rule Based"}
+                            </span>
+                          ) : (
+                            label.condition
+                          )}
                         </div>
+                        {label.ruleType && label.ruleType !== "specific" && (
+                          <div>
+                            <b>Rule:</b>{" "}
+                            {label.ruleType === "special_price" &&
+                            label.ruleConfig ? (
+                              <span style={{ color: "#666" }}>
+                                Special Price: ${label.ruleConfig.from || "0"} -
+                                ${label.ruleConfig.to || "∞"}
+                              </span>
+                            ) : label.ruleType === "new_arrival" &&
+                              label.ruleConfig ? (
+                              <span style={{ color: "#666" }}>
+                                New Arrival: Last {label.ruleConfig.days || 30}{" "}
+                                days
+                              </span>
+                            ) : (
+                              <span style={{ color: "#666" }}>
+                                {label.ruleType}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <div>
                           <b>Status:</b>{" "}
                           <span
@@ -643,47 +831,48 @@ export default function LabelsProductList() {
                             {label.active ? "Active" : "Inactive"}
                           </span>
                         </div>
-                        {label.condition === "specific" && (
-                          <div>
-                            <b>Products:</b>{" "}
-                            {Array.isArray(label.productIds) &&
-                            label.productIds.length > 0 ? (
-                              <div style={{ marginTop: 4 }}>
-                                {label.productIds.map((productId) => {
-                                  const product = products.find(
-                                    (p) => p.id === productId,
-                                  );
-                                  return product ? (
-                                    <div
-                                      key={productId}
-                                      style={{
-                                        display: "inline-block",
-                                        background: "#f6f6f7",
-                                        padding: "2px 8px",
-                                        borderRadius: "4px",
-                                        margin: "2px",
-                                        fontSize: "12px",
-                                      }}
-                                    >
-                                      {product.title}
-                                    </div>
-                                  ) : (
-                                    <span
-                                      key={productId}
-                                      style={{ color: "#999" }}
-                                    >
-                                      {productId} (not found)
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <span style={{ color: "#999" }}>
-                                No products selected
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        {label.condition === "specific" &&
+                          label.ruleType === "specific" && (
+                            <div>
+                              <b>Products:</b>{" "}
+                              {Array.isArray(label.productIds) &&
+                              label.productIds.length > 0 ? (
+                                <div style={{ marginTop: 4 }}>
+                                  {label.productIds.map((productId) => {
+                                    const product = products.find(
+                                      (p) => p.id === productId,
+                                    );
+                                    return product ? (
+                                      <div
+                                        key={productId}
+                                        style={{
+                                          display: "inline-block",
+                                          background: "#f6f6f7",
+                                          padding: "2px 8px",
+                                          borderRadius: "4px",
+                                          margin: "2px",
+                                          fontSize: "12px",
+                                        }}
+                                      >
+                                        {product.title}
+                                      </div>
+                                    ) : (
+                                      <span
+                                        key={productId}
+                                        style={{ color: "#999" }}
+                                      >
+                                        {productId} (not found)
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <span style={{ color: "#999" }}>
+                                  No products selected
+                                </span>
+                              )}
+                            </div>
+                          )}
                         <div style={{ fontSize: 12, color: "#888" }}>
                           Created at{" "}
                           {new Date(label.createdAt).toLocaleString()}
@@ -979,188 +1168,416 @@ export default function LabelsProductList() {
               </div>
             )}
             {activeTab === 1 && (
-              <div style={{ maxWidth: 400 }}>
+              <div style={{ maxWidth: 600 }}>
+                <div
+                  style={{
+                    marginBottom: 24,
+                    padding: 16,
+                    background: "#f8f9fa",
+                    borderRadius: 8,
+                    border: "1px solid #e1e3e5",
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: "0 0 12px 0",
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: "#202223",
+                    }}
+                  >
+                    Current Rule Configuration
+                  </h3>
+                  <div style={{ fontSize: "14px", color: "#666" }}>
+                    {productCondition[0] === "all"
+                      ? "This label will be applied to ALL products in your store."
+                      : productCondition[0] === "special_price"
+                        ? `This label will be applied to products with special prices between $${specialPriceFrom || "0"} and $${specialPriceTo || "∞"}.`
+                        : productCondition[0] === "new_arrival"
+                          ? `This label will be applied to products created in the last ${newArrivalDays} days.`
+                          : productCondition[0] === "specific" &&
+                              ruleType === "specific"
+                            ? `This label will be applied to ${selectedProductIds.length} manually selected products.`
+                            : productCondition[0] === "specific" &&
+                                ruleType === "special_price"
+                              ? `This label will be applied to products with special prices between $${specialPriceFrom || "0"} and $${specialPriceTo || "∞"}.`
+                              : productCondition[0] === "specific" &&
+                                  ruleType === "new_arrival"
+                                ? `This label will be applied to products created in the last ${newArrivalDays} days.`
+                                : "Please select a rule type to configure this label."}
+                  </div>
+                </div>
+
                 <ChoiceList
                   title="Condition apply label"
                   choices={[
                     { label: "All products", value: "all" },
                     { label: "Choose specific products", value: "specific" },
+                    { label: "Special price rule", value: "special_price" },
+                    { label: "New arrival rule", value: "new_arrival" },
                   ]}
                   selected={productCondition}
                   onChange={setProductCondition}
                 />
+
+                {/* Rule Type Selection */}
                 {productCondition[0] === "specific" && (
                   <div style={{ marginTop: 16 }}>
-                    <div style={{ marginBottom: 16 }}>
+                    <ChoiceList
+                      title="Product selection method"
+                      choices={[
+                        { label: "Manual selection", value: "specific" },
+                        { label: "Special price rule", value: "special_price" },
+                        { label: "New arrival rule", value: "new_arrival" },
+                      ]}
+                      selected={[ruleType]}
+                      onChange={(value) => setRuleType(value[0])}
+                    />
+                  </div>
+                )}
+
+                {/* Special Price Rule Configuration */}
+                {(productCondition[0] === "special_price" ||
+                  (productCondition[0] === "specific" &&
+                    ruleType === "special_price")) && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      padding: 16,
+                      background: "#f6f6f7",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <h3
+                      style={{
+                        margin: "0 0 16px 0",
+                        fontSize: 16,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Special Price Rule Configuration
+                    </h3>
+                    <p
+                      style={{
+                        margin: "0 0 16px 0",
+                        fontSize: 14,
+                        color: "#666",
+                      }}
+                    >
+                      Apply label to products with special prices within the
+                      specified range. This rule will automatically apply the
+                      label to products that have a compare-at-price (original
+                      price) within the specified range, indicating they are on
+                      sale.
+                    </p>
+                    <div
+                      style={{ display: "flex", gap: 16, alignItems: "center" }}
+                    >
                       <TextField
-                        label="Search products"
-                        value={productSearchTerm}
-                        onChange={setProductSearchTerm}
-                        placeholder="Search products by name..."
+                        label="Price from ($)"
+                        type="number"
+                        value={specialPriceFrom}
+                        onChange={setSpecialPriceFrom}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
                         autoComplete="off"
-                        connectedRight={
-                          <Button
-                            onClick={() => setProductSearchTerm("")}
-                            disabled={!productSearchTerm}
-                            size="slim"
-                          >
-                            Clear
-                          </Button>
-                        }
                       />
-                      <div
-                        style={{
-                          marginTop: 8,
-                          fontSize: "14px",
-                          color: "#666",
-                        }}
-                      >
-                        {productSearchTerm ? (
-                          <>
-                            {productSearchTerm !== debouncedProductSearch ? (
-                              <span
-                                style={{ color: "#666", fontStyle: "italic" }}
-                              >
-                                Searching...
-                              </span>
-                            ) : (
-                              <>
-                                Showing{" "}
-                                {
-                                  products.filter((product) =>
+                      <TextField
+                        label="Price to ($)"
+                        type="number"
+                        value={specialPriceTo}
+                        onChange={setSpecialPriceTo}
+                        placeholder="999.99"
+                        min="0"
+                        step="0.01"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div
+                      style={{ marginTop: 12, fontSize: "14px", color: "#666" }}
+                    >
+                      Products with compare-at-price between $
+                      {specialPriceFrom || "0"} and ${specialPriceTo || "∞"}{" "}
+                      will get this label
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        fontSize: "14px",
+                        color: "#008060",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {(() => {
+                        const matchingProducts = products.filter((product) => {
+                          const comparePrice = parseFloat(
+                            product.compareAtPrice,
+                          );
+                          const fromPrice = parseFloat(specialPriceFrom) || 0;
+                          const toPrice = parseFloat(specialPriceTo) || 999999;
+                          return (
+                            comparePrice &&
+                            comparePrice >= fromPrice &&
+                            comparePrice <= toPrice
+                          );
+                        });
+                        return `${matchingProducts.length} products currently match this rule`;
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* New Arrival Rule Configuration */}
+                {(productCondition[0] === "new_arrival" ||
+                  (productCondition[0] === "specific" &&
+                    ruleType === "new_arrival")) && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      padding: 16,
+                      background: "#f6f6f7",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <h3
+                      style={{
+                        margin: "0 0 16px 0",
+                        fontSize: 16,
+                        fontWeight: 600,
+                      }}
+                    >
+                      New Arrival Rule Configuration
+                    </h3>
+                    <p
+                      style={{
+                        margin: "0 0 16px 0",
+                        fontSize: 14,
+                        color: "#666",
+                      }}
+                    >
+                      Apply label to products created within the specified
+                      number of days. This rule will automatically apply the
+                      label to newly added products, helping customers identify
+                      fresh inventory.
+                    </p>
+                    <TextField
+                      label="Days since creation"
+                      type="number"
+                      value={newArrivalDays}
+                      onChange={setNewArrivalDays}
+                      placeholder="30"
+                      min="1"
+                      max="365"
+                      autoComplete="off"
+                    />
+                    <div style={{ marginTop: 12, fontSize: 14, color: "#666" }}>
+                      Products created in the last {newArrivalDays} days will
+                      get this label
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        fontSize: "14px",
+                        color: "#008060",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {(() => {
+                        const cutoffDate = new Date();
+                        cutoffDate.setDate(
+                          cutoffDate.getDate() - newArrivalDays,
+                        );
+                        const matchingProducts = products.filter((product) => {
+                          const productDate = new Date(product.createdAt);
+                          return productDate >= cutoffDate;
+                        });
+                        return `${matchingProducts.length} products currently match this rule`;
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual Product Selection */}
+                {productCondition[0] === "specific" &&
+                  ruleType === "specific" && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{ marginBottom: 16 }}>
+                        <TextField
+                          label="Search products"
+                          value={productSearchTerm}
+                          onChange={setProductSearchTerm}
+                          placeholder="Search products by name..."
+                          autoComplete="off"
+                          connectedRight={
+                            <Button
+                              onClick={() => setProductSearchTerm("")}
+                              disabled={!productSearchTerm}
+                              size="slim"
+                            >
+                              Clear
+                            </Button>
+                          }
+                        />
+                        <div
+                          style={{
+                            marginTop: 8,
+                            fontSize: "14px",
+                            color: "#666",
+                          }}
+                        >
+                          {productSearchTerm ? (
+                            <>
+                              {productSearchTerm !== debouncedProductSearch ? (
+                                <span
+                                  style={{ color: "#666", fontStyle: "italic" }}
+                                >
+                                  Searching...
+                                </span>
+                              ) : (
+                                <>
+                                  Showing{" "}
+                                  {
+                                    products.filter((product) =>
+                                      product.title
+                                        .toLowerCase()
+                                        .includes(
+                                          debouncedProductSearch.toLowerCase(),
+                                        ),
+                                    ).length
+                                  }{" "}
+                                  of {products.length} products
+                                </>
+                              )}
+                            </>
+                          ) : (
+                            `Total ${products.length} products available`
+                          )}
+                        </div>
+                        <div style={{ marginTop: 12, marginBottom: 16 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Button
+                              size="slim"
+                              onClick={() => {
+                                const filteredProducts = products.filter(
+                                  (product) =>
                                     product.title
                                       .toLowerCase()
                                       .includes(
                                         debouncedProductSearch.toLowerCase(),
                                       ),
-                                  ).length
-                                }{" "}
-                                of {products.length} products
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          `Total ${products.length} products available`
-                        )}
-                      </div>
-                      <div style={{ marginTop: 12, marginBottom: 16 }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            alignItems: "center",
-                          }}
-                        >
-                          <Button
-                            size="slim"
-                            onClick={() => {
-                              const filteredProducts = products.filter(
-                                (product) =>
-                                  product.title
-                                    .toLowerCase()
-                                    .includes(
-                                      debouncedProductSearch.toLowerCase(),
-                                    ),
-                              );
-                              const filteredProductIds = filteredProducts.map(
-                                (p) => p.id,
-                              );
-                              setSelectedProductIds((prev) => {
-                                const newSelection = [...prev];
-                                filteredProductIds.forEach((id) => {
-                                  if (!newSelection.includes(id)) {
-                                    newSelection.push(id);
-                                  }
+                                );
+                                const filteredProductIds = filteredProducts.map(
+                                  (p) => p.id,
+                                );
+                                setSelectedProductIds((prev) => {
+                                  const newSelection = [...prev];
+                                  filteredProductIds.forEach((id) => {
+                                    if (!newSelection.includes(id)) {
+                                      newSelection.push(id);
+                                    }
+                                  });
+                                  return newSelection;
                                 });
-                                return newSelection;
-                              });
-                            }}
-                          >
-                            Select All Filtered
-                          </Button>
-                          <Button
-                            size="slim"
-                            onClick={() => {
-                              const filteredProducts = products.filter(
-                                (product) =>
-                                  product.title
-                                    .toLowerCase()
-                                    .includes(
-                                      debouncedProductSearch.toLowerCase(),
-                                    ),
-                              );
-                              const filteredProductIds = filteredProducts.map(
-                                (p) => p.id,
-                              );
-                              setSelectedProductIds((prev) =>
-                                prev.filter(
-                                  (id) => !filteredProductIds.includes(id),
-                                ),
-                              );
-                            }}
-                          >
-                            Deselect All Filtered
-                          </Button>
-                          {selectedProductIds.length > 0 && (
-                            <span style={{ fontSize: "14px", color: "#666" }}>
-                              {selectedProductIds.length} product(s) selected
-                            </span>
-                          )}
+                              }}
+                            >
+                              Select All Filtered
+                            </Button>
+                            <Button
+                              size="slim"
+                              onClick={() => {
+                                const filteredProducts = products.filter(
+                                  (product) =>
+                                    product.title
+                                      .toLowerCase()
+                                      .includes(
+                                        debouncedProductSearch.toLowerCase(),
+                                      ),
+                                );
+                                const filteredProductIds = filteredProducts.map(
+                                  (p) => p.id,
+                                );
+                                setSelectedProductIds((prev) =>
+                                  prev.filter(
+                                    (id) => !filteredProductIds.includes(id),
+                                  ),
+                                );
+                              }}
+                            >
+                              Deselect All Filtered
+                            </Button>
+                            {selectedProductIds.length > 0 && (
+                              <span style={{ fontSize: "14px", color: "#666" }}>
+                                {selectedProductIds.length} product(s) selected
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <ResourceList
-                      resourceName={{ singular: "product", plural: "products" }}
-                      items={products.filter((product) =>
-                        product.title
-                          .toLowerCase()
-                          .includes(debouncedProductSearch.toLowerCase()),
-                      )}
-                      selectedItems={selectedProductIds}
-                      onSelectionChange={setSelectedProductIds}
-                      selectable
-                      emptyState={
-                        <div
-                          style={{ textAlign: "center", padding: "40px 20px" }}
-                        >
-                          <Text as="p" variant="bodyMd" color="subdued">
-                            {productSearchTerm
-                              ? `No products found matching "${productSearchTerm}"`
-                              : "No products available"}
-                          </Text>
-                        </div>
-                      }
-                      renderItem={(product) => (
-                        <ResourceList.Item id={product.id}>
+                      <ResourceList
+                        resourceName={{
+                          singular: "product",
+                          plural: "products",
+                        }}
+                        items={products.filter((product) =>
+                          product.title
+                            .toLowerCase()
+                            .includes(debouncedProductSearch.toLowerCase()),
+                        )}
+                        selectedItems={selectedProductIds}
+                        onSelectionChange={setSelectedProductIds}
+                        selectable
+                        emptyState={
                           <div
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 16,
+                              textAlign: "center",
+                              padding: "40px 20px",
                             }}
                           >
-                            <Thumbnail
-                              source={
-                                product.featuredImage?.url ||
-                                "https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
-                              }
-                              alt={product.title}
-                              style={{
-                                maxWidth: 100,
-                                width: 100,
-                                height: "auto",
-                                objectFit: "cover",
-                              }}
-                            />
-                            <div style={{ fontWeight: 500 }}>
-                              {product.title}
-                            </div>
+                            <Text as="p" variant="bodyMd" color="subdued">
+                              {productSearchTerm
+                                ? `No products found matching "${productSearchTerm}"`
+                                : "No products available"}
+                            </Text>
                           </div>
-                        </ResourceList.Item>
-                      )}
-                    />
-                  </div>
-                )}
+                        }
+                        renderItem={(product) => (
+                          <ResourceList.Item id={product.id}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 16,
+                              }}
+                            >
+                              <Thumbnail
+                                source={
+                                  product.featuredImage?.url ||
+                                  "https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
+                                }
+                                alt={product.title}
+                                style={{
+                                  maxWidth: 100,
+                                  width: 100,
+                                  height: "auto",
+                                  objectFit: "cover",
+                                }}
+                              />
+                              <div style={{ fontWeight: 500 }}>
+                                {product.title}
+                              </div>
+                            </div>
+                          </ResourceList.Item>
+                        )}
+                      />
+                    </div>
+                  )}
               </div>
             )}
           </Tabs>
