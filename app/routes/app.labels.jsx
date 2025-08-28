@@ -216,11 +216,22 @@ export default function LabelsProductList() {
   const [selectedLabelIds, setSelectedLabelIds] = useState([]); // For bulk actions
   const [loadingLabels, setLoadingLabels] = useState(new Set()); // Track loading state for individual labels
   const [bulkActionLoading, setBulkActionLoading] = useState(false); // Track bulk action loading
+  const [productSearchTerm, setProductSearchTerm] = useState(""); // For product search
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState(""); // Debounced search term
 
   const shop = loaderData.shop;
   const isSubmitting = navigation.state === "submitting";
   const isFetcherSubmitting = fetcher.state === "submitting";
   const labels = loaderData.labels || [];
+
+  // Debounce search term to improve performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedProductSearch(productSearchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [productSearchTerm]);
 
   // Filter labels based on active status
   const filteredLabels = labels.filter((label) => {
@@ -392,6 +403,8 @@ export default function LabelsProductList() {
     setProductCondition(["all"]);
     setSelectedProductIds([]);
     setEditLabel(null);
+    setProductSearchTerm(""); // Reset search term
+    setDebouncedProductSearch(""); // Reset debounced search term
   };
   // Modal logic
   const openCreateLabelModal = () => {
@@ -404,6 +417,8 @@ export default function LabelsProductList() {
     setProductCondition(["all"]);
     setSelectedProductIds([]);
     setModalActive(true);
+    setProductSearchTerm(""); // Reset search term
+    setDebouncedProductSearch(""); // Reset debounced search term
   };
   // Helper: hex to rgb
   function hexToRgb(hex) {
@@ -430,7 +445,9 @@ export default function LabelsProductList() {
             <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 16 }}>
               Product Label Management
             </h2>
-            <p style={{ textAlign: "right", marginBottom: 20 }}>Develop by Thanh Nguyen</p>
+            <p style={{ textAlign: "right", marginBottom: 20 }}>
+              Develop by Thanh Nguyen
+            </p>
           </TextContainer>
           <div
             style={{
@@ -611,14 +628,17 @@ export default function LabelsProductList() {
                         </div>
                         <div>
                           <b>Status:</b>{" "}
-                          <span style={{
-                            backgroundColor: label.active ? "#00a47c" : "#ccc",
-                            color: "#fff",
-                            borderRadius: "4px",
-                            padding: "2px 8px",
-                            fontSize: "12px",
-                            maxWidth: "max-content",
-                          }}
+                          <span
+                            style={{
+                              backgroundColor: label.active
+                                ? "#00a47c"
+                                : "#ccc",
+                              color: "#fff",
+                              borderRadius: "4px",
+                              padding: "2px 8px",
+                              fontSize: "12px",
+                              maxWidth: "max-content",
+                            }}
                           >
                             {label.active ? "Active" : "Inactive"}
                           </span>
@@ -626,30 +646,41 @@ export default function LabelsProductList() {
                         {label.condition === "specific" && (
                           <div>
                             <b>Products:</b>{" "}
-                            {Array.isArray(label.productIds) && label.productIds.length > 0 ? (
+                            {Array.isArray(label.productIds) &&
+                            label.productIds.length > 0 ? (
                               <div style={{ marginTop: 4 }}>
                                 {label.productIds.map((productId) => {
-                                  const product = products.find(p => p.id === productId);
+                                  const product = products.find(
+                                    (p) => p.id === productId,
+                                  );
                                   return product ? (
-                                    <div key={productId} style={{ 
-                                      display: 'inline-block', 
-                                      background: '#f6f6f7', 
-                                      padding: '2px 8px', 
-                                      borderRadius: '4px', 
-                                      margin: '2px',
-                                      fontSize: '12px'
-                                    }}>
+                                    <div
+                                      key={productId}
+                                      style={{
+                                        display: "inline-block",
+                                        background: "#f6f6f7",
+                                        padding: "2px 8px",
+                                        borderRadius: "4px",
+                                        margin: "2px",
+                                        fontSize: "12px",
+                                      }}
+                                    >
                                       {product.title}
                                     </div>
                                   ) : (
-                                    <span key={productId} style={{ color: '#999' }}>
+                                    <span
+                                      key={productId}
+                                      style={{ color: "#999" }}
+                                    >
                                       {productId} (not found)
                                     </span>
                                   );
                                 })}
                               </div>
                             ) : (
-                              <span style={{ color: '#999' }}>No products selected</span>
+                              <span style={{ color: "#999" }}>
+                                No products selected
+                              </span>
                             )}
                           </div>
                         )}
@@ -787,14 +818,23 @@ export default function LabelsProductList() {
                           placeholder="#008060"
                         />
                         <div style={{ marginTop: 8 }}>
-                          <label style={{ display: "block", marginBottom: 4, fontSize: "14px" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: 4,
+                              fontSize: "14px",
+                            }}
+                          >
                             Color picker:
                           </label>
                           <input
                             type="color"
                             value={labelHex}
                             onChange={(e) => {
-                              console.log("HTML color input changed:", e.target.value);
+                              console.log(
+                                "HTML color input changed:",
+                                e.target.value,
+                              );
                               setLabelHex(e.target.value);
                               const hex = e.target.value.replace(/^#/, "");
                               const r = parseInt(hex.slice(0, 2), 16);
@@ -802,7 +842,12 @@ export default function LabelsProductList() {
                               const b = parseInt(hex.slice(4, 6), 16);
                               setLabelBg({ red: r, green: g, blue: b });
                             }}
-                            style={{ width: "100%", height: "40px", border: "1px solid #ddd", borderRadius: "4px" }}
+                            style={{
+                              width: "100%",
+                              height: "40px",
+                              border: "1px solid #ddd",
+                              borderRadius: "4px",
+                            }}
                           />
                         </div>
                       </div>
@@ -882,7 +927,12 @@ export default function LabelsProductList() {
                                   }),
                             background: (() => {
                               const bgColor = hexFromRgb(labelBg);
-                              console.log("Preview background color:", bgColor, "from labelBg:", labelBg);
+                              console.log(
+                                "Preview background color:",
+                                bgColor,
+                                "from labelBg:",
+                                labelBg,
+                              );
                               return bgColor;
                             })(),
                             color: "#fff",
@@ -941,12 +991,145 @@ export default function LabelsProductList() {
                 />
                 {productCondition[0] === "specific" && (
                   <div style={{ marginTop: 16 }}>
+                    <div style={{ marginBottom: 16 }}>
+                      <TextField
+                        label="Search products"
+                        value={productSearchTerm}
+                        onChange={setProductSearchTerm}
+                        placeholder="Search products by name..."
+                        autoComplete="off"
+                        connectedRight={
+                          <Button
+                            onClick={() => setProductSearchTerm("")}
+                            disabled={!productSearchTerm}
+                            size="slim"
+                          >
+                            Clear
+                          </Button>
+                        }
+                      />
+                      <div
+                        style={{
+                          marginTop: 8,
+                          fontSize: "14px",
+                          color: "#666",
+                        }}
+                      >
+                        {productSearchTerm ? (
+                          <>
+                            {productSearchTerm !== debouncedProductSearch ? (
+                              <span
+                                style={{ color: "#666", fontStyle: "italic" }}
+                              >
+                                Searching...
+                              </span>
+                            ) : (
+                              <>
+                                Showing{" "}
+                                {
+                                  products.filter((product) =>
+                                    product.title
+                                      .toLowerCase()
+                                      .includes(
+                                        debouncedProductSearch.toLowerCase(),
+                                      ),
+                                  ).length
+                                }{" "}
+                                of {products.length} products
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          `Total ${products.length} products available`
+                        )}
+                      </div>
+                      <div style={{ marginTop: 12, marginBottom: 16 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            alignItems: "center",
+                          }}
+                        >
+                          <Button
+                            size="slim"
+                            onClick={() => {
+                              const filteredProducts = products.filter(
+                                (product) =>
+                                  product.title
+                                    .toLowerCase()
+                                    .includes(
+                                      debouncedProductSearch.toLowerCase(),
+                                    ),
+                              );
+                              const filteredProductIds = filteredProducts.map(
+                                (p) => p.id,
+                              );
+                              setSelectedProductIds((prev) => {
+                                const newSelection = [...prev];
+                                filteredProductIds.forEach((id) => {
+                                  if (!newSelection.includes(id)) {
+                                    newSelection.push(id);
+                                  }
+                                });
+                                return newSelection;
+                              });
+                            }}
+                          >
+                            Select All Filtered
+                          </Button>
+                          <Button
+                            size="slim"
+                            onClick={() => {
+                              const filteredProducts = products.filter(
+                                (product) =>
+                                  product.title
+                                    .toLowerCase()
+                                    .includes(
+                                      debouncedProductSearch.toLowerCase(),
+                                    ),
+                              );
+                              const filteredProductIds = filteredProducts.map(
+                                (p) => p.id,
+                              );
+                              setSelectedProductIds((prev) =>
+                                prev.filter(
+                                  (id) => !filteredProductIds.includes(id),
+                                ),
+                              );
+                            }}
+                          >
+                            Deselect All Filtered
+                          </Button>
+                          {selectedProductIds.length > 0 && (
+                            <span style={{ fontSize: "14px", color: "#666" }}>
+                              {selectedProductIds.length} product(s) selected
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                     <ResourceList
                       resourceName={{ singular: "product", plural: "products" }}
-                      items={products}
+                      items={products.filter((product) =>
+                        product.title
+                          .toLowerCase()
+                          .includes(debouncedProductSearch.toLowerCase()),
+                      )}
                       selectedItems={selectedProductIds}
                       onSelectionChange={setSelectedProductIds}
                       selectable
+                      emptyState={
+                        <div
+                          style={{ textAlign: "center", padding: "40px 20px" }}
+                        >
+                          <Text as="p" variant="bodyMd" color="subdued">
+                            {productSearchTerm
+                              ? `No products found matching "${productSearchTerm}"`
+                              : "No products available"}
+                          </Text>
+                        </div>
+                      }
                       renderItem={(product) => (
                         <ResourceList.Item id={product.id}>
                           <div
