@@ -76,7 +76,8 @@ export default function LabelsProductList() {
   );
 
   const shop = loaderData.shop;
-  const isSubmitting = navigation.state === "submitting";
+  const isSubmitting =
+    navigation.state === "submitting" || fetcher.state === "submitting";
   const labels = loaderData.labels || [];
 
   // Debounce search term to improve performance
@@ -129,6 +130,40 @@ export default function LabelsProductList() {
       resetLoadingStates(setLoadingLabels, setBulkActionLoading);
     }
   }, [actionData]);
+
+  // Handle fetcher success/error for modal actions
+  useEffect(() => {
+    if (fetcher.data?.success) {
+      setModalActive(false);
+      resetLabelFormState(
+        setLabelText,
+        setLabelBg,
+        setLabelHex,
+        setLabelPosition,
+        setActiveTab,
+        setProductCondition,
+        setSelectedProductIds,
+        setEditLabel,
+        setProductSearchTerm,
+        setDebouncedProductSearch,
+        setRuleType,
+        setSpecialPriceFrom,
+        setSpecialPriceTo,
+        setNewArrivalDays,
+      );
+      setSelectedLabelIds([]); // Reset selected labels on success
+
+      // Reset all loading states on success
+      resetLoadingStates(setLoadingLabels, setBulkActionLoading);
+    }
+
+    // Handle fetcher errors
+    if (fetcher.data?.error) {
+      console.error("Fetcher error:", fetcher.data.error);
+      // Reset loading states on error
+      resetLoadingStates(setLoadingLabels, setBulkActionLoading);
+    }
+  }, [fetcher.data]);
 
   // Reset loading states when fetcher state changes
   useEffect(() => {
@@ -206,6 +241,7 @@ export default function LabelsProductList() {
 
     const editLabelId = editLabel ? editLabel.id : null;
     submitLabelForm(formData, editLabelId, fetcher);
+    // Modal sẽ tự động đóng khi fetcher.data.success được set
   };
   // Reset edit state khi đóng modal
   const closeCreateLabelModal = () => {
