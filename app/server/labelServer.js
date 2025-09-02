@@ -71,6 +71,20 @@ export const loader = async ({ request }) => {
       orderBy: { createdAt: "desc" },
     });
 
+    // Debug: Log raw labels data from database
+    console.log("LabelServer: Raw labels from database:", labels);
+    labels.forEach((label, index) => {
+      console.log(`LabelServer: Label ${index + 1} raw data:`, {
+        id: label.id,
+        text: label.text,
+        condition: label.condition,
+        ruleType: label.ruleType,
+        ruleConfig: label.ruleConfig,
+        ruleConfigType: typeof label.ruleConfig,
+        active: label.active,
+      });
+    });
+
     return { products, shop, hasNextPage, endCursor, labels };
   } catch (error) {
     // If error is due to missing shop domain/session, redirect to login

@@ -6,7 +6,7 @@
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
     "https://belkin-cope-susan-strap.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
-  
+
   const LABEL_STYLES = {
     position: "absolute",
     zIndex: 1000,
@@ -82,6 +82,36 @@
     return null;
   }
 
+  function getCurrentProduct() {
+    // Try to get product information from various sources
+    const product = {};
+
+    // Get product ID
+    product.id = getCurrentProductId();
+
+    // Get compare at price (original price)
+    const compareAtPriceElement =
+      document.querySelector("[data-compare-price]") ||
+      document.querySelector(".price__compare") ||
+      document.querySelector(".product__price--compare") ||
+      document.querySelector(".product-single__price--compare") ||
+      document.querySelector("[data-product-compare-price]");
+
+    if (compareAtPriceElement) {
+      const comparePriceText =
+        compareAtPriceElement.textContent || compareAtPriceElement.innerText;
+      if (comparePriceText) {
+        // Extract price from text (remove currency symbols and extra text)
+        const priceMatch = comparePriceText.match(/[\d,]+\.?\d*/);
+        if (priceMatch) {
+          product.compareAtPrice = priceMatch[0].replace(/,/g, "");
+        }
+      }
+    }
+
+    return product;
+  }
+
   function createLabelElement(label) {
     const labelEl = document.createElement("div");
     labelEl.className = "do-product-label";
@@ -93,10 +123,9 @@
     // Apply background color with validation
     if (label.background) {
       // Check if it's a valid color
-      const isValidColor =
-        /^#([A-Fa-f0-9]{3,6})$|^rgba?\(|^hsla?\(/.test(
-          label.background,
-        );
+      const isValidColor = /^#([A-Fa-f0-9]{3,6})$|^rgba?\(|^hsla?\(/.test(
+        label.background,
+      );
 
       if (isValidColor) {
         labelEl.style.backgroundColor = label.background;
@@ -263,7 +292,6 @@
     return matchFound;
   }
 
-  
   function shouldShowLabel(label, productId) {
     // Validate input parameters
     if (!label || typeof label !== "object") {
@@ -300,9 +328,75 @@
       return result;
     }
 
-    return true;
+    // CONDITION 3: Show based on rule-based conditions
+    if (label.condition === "rule_based" && label.ruleType) {
+      // Special Price Rule
+      if (label.ruleType === "special_price" && label.ruleConfig) {
+        const product = getCurrentProduct();
+        if (!product || !product.compareAtPrice) {
+          return false; // No compare price, don't show label
+        }
+
+        const comparePrice = parseFloat(product.compareAtPrice);
+        const fromPrice = parseFloat(label.ruleConfig.from) || 0;
+        const toPrice = parseFloat(label.ruleConfig.to) || 999999;
+
+        // Check if product price is within the specified range
+        if (comparePrice < fromPrice || comparePrice > toPrice) {
+          return false; // Price outside range, don't show label
+        }
+
+        return true; // Price within range, show label
+      }
+
+      // New Arrival Rule - Note: This won't work perfectly on frontend
+      // because we can't get product creation date from frontend
+      if (label.ruleType === "new_arrival" && label.ruleConfig) {
+        console.warn(
+          "DO Label: New arrival rule is not fully supported on frontend due to missing product creation date",
+        );
+        // For now, we'll show the label but this is not ideal
+        // In the future, we could implement a product sync mechanism
+        return true;
+      }
+    }
+
+    // CONDITION 4: Show only on specific products with rule-based conditions
+    if (
+      label.condition === "specific" &&
+      label.ruleType &&
+      label.ruleType !== "specific"
+    ) {
+      // Special Price Rule for specific products
+      if (label.ruleType === "special_price" && label.ruleConfig) {
+        const product = getCurrentProduct();
+        if (!product || !product.compareAtPrice) {
+          return false; // No compare price, don't show label
+        }
+
+        const comparePrice = parseFloat(product.compareAtPrice);
+        const fromPrice = parseFloat(label.ruleConfig.from) || 0;
+        const toPrice = parseFloat(label.ruleConfig.to) || 999999;
+
+        // Check if product price is within the specified range
+        if (comparePrice < fromPrice || comparePrice > toPrice) {
+          return false; // Price outside range, don't show label
+        }
+
+        return true; // Price within range, show label
+      }
+
+      // New Arrival Rule for specific products - Same limitation as above
+      if (label.ruleType === "new_arrival" && label.ruleConfig) {
+        console.warn(
+          "DO Label: New arrival rule is not fully supported on frontend due to missing product creation date",
+        );
+        return true;
+      }
+    }
+
+    return false; // Default: don't show label if no conditions match
   }
- 
 
   function injectLabels(labels, productId) {
     // Find product image container with more comprehensive selectors
@@ -365,12 +459,12 @@
     return [];
   }
 
-
   // Main execution for product pages
   function initProductLabels() {
     // Check if we're on a product page
-    const onProductPage = /\/products\//.test(window.location.pathname) || !!getCurrentProductId();
-    
+    const onProductPage =
+      /\/products\//.test(window.location.pathname) || !!getCurrentProductId();
+
     if (!onProductPage) {
       return; // Not a product page, exit early
     }
@@ -395,7 +489,6 @@
   } else {
     initProductLabels();
   }
-
 
   // Also run on page changes (for SPA themes)
   if (typeof window !== "undefined" && window.Shopify && window.Shopify.on) {

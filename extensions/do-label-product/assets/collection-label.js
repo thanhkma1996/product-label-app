@@ -4,7 +4,7 @@
   // Configuration - Multiple endpoints for fallback
   const API_ENDPOINTS = [
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
-    "hhttps://belkin-cope-susan-strap.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
+    "https://belkin-cope-susan-strap.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
 
   const LABEL_STYLES = {
@@ -78,11 +78,78 @@
     return normalized;
   }
 
+  function getCurrentProduct() {
+    // Try to get product information from various sources
+    const product = {};
+
+    // Get compare at price (original price) from the current product card
+    const compareAtPriceElement =
+      document.querySelector("[data-compare-price]") ||
+      document.querySelector(".price__compare") ||
+      document.querySelector(".product__price--compare") ||
+      document.querySelector(".product-single__price--compare") ||
+      document.querySelector("[data-product-compare-price]");
+
+    if (compareAtPriceElement) {
+      const comparePriceText =
+        compareAtPriceElement.textContent || compareAtPriceElement.innerText;
+      if (comparePriceText) {
+        // Extract price from text (remove currency symbols and extra text)
+        const priceMatch = comparePriceText.match(/[\d,]+\.?\d*/);
+        if (priceMatch) {
+          product.compareAtPrice = priceMatch[0].replace(/,/g, "");
+        }
+      }
+    }
+
+    return product;
+  }
+
+  function getProductFromCard(cardEl) {
+    // Try to get product information from a specific product card
+    const product = {};
+
+    // Get compare at price from the card
+    const compareAtPriceElement =
+      cardEl.querySelector("[data-compare-price]") ||
+      cardEl.querySelector(".price__compare") ||
+      cardEl.querySelector(".product__price--compare") ||
+      cardEl.querySelector(".product-single__price--compare") ||
+      cardEl.querySelector("[data-product-compare-price]");
+
+    if (compareAtPriceElement) {
+      const comparePriceText =
+        compareAtPriceElement.textContent || compareAtPriceElement.innerText;
+      if (comparePriceText) {
+        // Extract price from text (remove currency symbols and extra text)
+        const priceMatch = comparePriceText.match(/[\d,]+\.?\d*/);
+        if (priceMatch) {
+          product.compareAtPrice = priceMatch[0].replace(/,/g, "");
+        }
+      }
+    }
+
+    return product;
+  }
+
   function isCollectionPage() {
     // Heuristics: URL contains /collections/ and there are product cards
     const inCollectionsPath =
       window.location.pathname.includes("/collections/");
-    return inCollectionsPath || getCollectionProductCards().length > 0;
+
+    const productCards = getCollectionProductCards();
+    const hasProductCards = productCards.length > 0;
+
+    console.log("DO Label Collection: isCollectionPage check:");
+    console.log("  - URL path:", window.location.pathname);
+    console.log("  - inCollectionsPath:", inCollectionsPath);
+    console.log("  - productCards found:", productCards.length);
+    console.log("  - hasProductCards:", hasProductCards);
+
+    const result = inCollectionsPath || hasProductCards;
+    console.log("DO Label Collection: isCollectionPage result:", result);
+
+    return result;
   }
 
   function extractHandleFromHref(href) {
@@ -142,7 +209,6 @@
     return null;
   }
 
-
   // Show function helper fro check product ID matching
   function isProductIdMatch(productId1, productId2) {
     // Normalize both IDs
@@ -200,27 +266,49 @@
   }
 
   function getCollectionProductCards() {
+    console.log("DO Label Collection: getCollectionProductCards called");
+
     // Find likely product card containers
     const cards = new Set();
+
     COLLECTION_CARD_SELECTORS.forEach((sel) => {
-      document.querySelectorAll(sel).forEach((el) => {
+      const elements = document.querySelectorAll(sel);
+      console.log(
+        `DO Label Collection: Selector "${sel}" found ${elements.length} elements`,
+      );
+
+      elements.forEach((el) => {
         // Only keep elements that actually contain a product link
         if (el.querySelector('a[href*="/products/"]')) {
           cards.add(el);
+          console.log(`DO Label Collection: Added card with selector "${sel}"`);
         }
       });
     });
 
     // If still empty, try links to products and walk up to card wrapper
     if (cards.size === 0) {
-      document.querySelectorAll('a[href*="/products/"]').forEach((link) => {
+      console.log(
+        "DO Label Collection: No cards found with primary selectors, trying fallback...",
+      );
+
+      const productLinks = document.querySelectorAll('a[href*="/products/"]');
+      console.log(
+        `DO Label Collection: Found ${productLinks.length} product links`,
+      );
+
+      productLinks.forEach((link) => {
         const card = link.closest(
           ".card-wrapper, .card--product, .product-card, .grid__item, li.grid__item",
         );
-        if (card) cards.add(card);
+        if (card) {
+          cards.add(card);
+          console.log("DO Label Collection: Added card via fallback method");
+        }
       });
     }
 
+    console.log(`DO Label Collection: Total cards found: ${cards.size}`);
     return Array.from(cards);
   }
 
@@ -311,22 +399,39 @@
     return labelEl;
   }
 
-  function shouldShowLabel(label, productId) {
+  function shouldShowLabel(label, productId, cardEl = null) {
+    console.log(
+      `DO Label Collection: shouldShowLabel called for label "${label.text}" and product ${productId}`,
+    );
+
     // Validate input parameters
     if (!label || typeof label !== "object") {
+      console.log(
+        `DO Label Collection: Label validation failed - invalid label object`,
+      );
       return false;
     }
 
     // Early return if label is inactive
     if (label.active === false) {
+      console.log(
+        `DO Label Collection: Label "${label.text}" is inactive, not showing`,
+      );
       return false;
     }
 
     // Normalize product ID for consistent comparison
     const normalizedProductId = normalizeProductId(productId);
     if (!normalizedProductId) {
+      console.log(
+        `DO Label Collection: Product ID normalization failed for ${productId}`,
+      );
       return false;
     }
+
+    console.log(
+      `DO Label Collection: Label "${label.text}" - condition: ${label.condition}, ruleType: ${label.ruleType}`,
+    );
 
     // CONDITION 1: Show on all products (default behavior)
     if (
@@ -334,15 +439,154 @@
       label.condition === "all" ||
       label.condition === ""
     ) {
+      console.log(
+        `DO Label Collection: Label "${label.text}" - showing (condition: all)`,
+      );
       return true;
     }
 
     // CONDITION 2: Show only on specific products
     if (label.condition === "specific") {
-      return checkSpecificProductCondition(label, normalizedProductId);
+      const result = checkSpecificProductCondition(label, normalizedProductId);
+      console.log(
+        `DO Label Collection: Label "${label.text}" - specific condition result: ${result}`,
+      );
+      return result;
     }
 
-    return true;
+    // CONDITION 3: Show based on rule-based conditions
+    if (label.condition === "rule_based" && label.ruleType) {
+      console.log(
+        `DO Label Collection: Label "${label.text}" - checking rule-based condition`,
+      );
+
+      // Special Price Rule
+      if (label.ruleType === "special_price" && label.ruleConfig) {
+        console.log(
+          `DO Label Collection: Label "${label.text}" - checking special price rule`,
+        );
+
+        const product = cardEl
+          ? getProductFromCard(cardEl)
+          : getCurrentProduct();
+        console.log(
+          `DO Label Collection: Label "${label.text}" - product data:`,
+          product,
+        );
+
+        if (!product || !product.compareAtPrice) {
+          console.log(
+            `DO Label Collection: Label "${label.text}" - no compare price, not showing`,
+          );
+          return false; // No compare price, don't show label
+        }
+
+        const comparePrice = parseFloat(product.compareAtPrice);
+        const fromPrice = parseFloat(label.ruleConfig.from) || 0;
+        const toPrice = parseFloat(label.ruleConfig.to) || 999999;
+
+        console.log(
+          `DO Label Collection: Label "${label.text}" - price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
+        );
+
+        // Check if product price is within the specified range
+        if (comparePrice < fromPrice || comparePrice > toPrice) {
+          console.log(
+            `DO Label Collection: Label "${label.text}" - price outside range, not showing`,
+          );
+          return false; // Price outside range, don't show label
+        }
+
+        console.log(
+          `DO Label Collection: Label "${label.text}" - price in range, showing`,
+        );
+        return true; // Price within range, show label
+      }
+
+      // New Arrival Rule - Note: This won't work perfectly on frontend
+      // because we can't get product creation date from frontend
+      if (label.ruleType === "new_arrival" && label.ruleConfig) {
+        console.log(
+          `DO Label Collection: Label "${label.text}" - new arrival rule (limited support), showing`,
+        );
+        console.warn(
+          "DO Label: New arrival rule is not fully supported on frontend due to missing product creation date",
+        );
+        // For now, we'll show the label but this is not ideal
+        // In the future, we could implement a product sync mechanism
+        return true;
+      }
+    }
+
+    // CONDITION 4: Show only on specific products with rule-based conditions
+    if (
+      label.condition === "specific" &&
+      label.ruleType &&
+      label.ruleType !== "specific"
+    ) {
+      console.log(
+        `DO Label Collection: Label "${label.text}" - checking specific + rule-based condition`,
+      );
+
+      // Special Price Rule for specific products
+      if (label.ruleType === "special_price" && label.ruleConfig) {
+        console.log(
+          `DO Label Collection: Label "${label.text}" - checking specific + special price rule`,
+        );
+
+        const product = cardEl
+          ? getProductFromCard(cardEl)
+          : getCurrentProduct();
+        console.log(
+          `DO Label Collection: Label "${label.text}" - product data:`,
+          product,
+        );
+
+        if (!product || !product.compareAtPrice) {
+          console.log(
+            `DO Label Collection: Label "${label.text}" - no compare price, not showing`,
+          );
+          return false; // No compare price, don't show label
+        }
+
+        const comparePrice = parseFloat(product.compareAtPrice);
+        const fromPrice = parseFloat(label.ruleConfig.from) || 0;
+        const toPrice = parseFloat(label.ruleConfig.to) || 999999;
+
+        console.log(
+          `DO Label Collection: Label "${label.text}" - price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
+        );
+
+        // Check if product price is within the specified range
+        if (comparePrice < fromPrice || comparePrice > toPrice) {
+          console.log(
+            `DO Label Collection: Label "${label.text}" - price outside range, not showing`,
+          );
+          return false; // Price outside range, don't show label
+        }
+
+        console.log(
+          `DO Label Collection: Label "${label.text}" - price in range, showing`,
+        );
+        return true; // Price within range, show label
+      }
+
+      // New Arrival Rule for specific products - Same limitation as above
+      if (label.ruleType === "new_arrival" && label.ruleConfig) {
+        console.log(
+          `DO Label Collection: Label "${label.text}" - specific + new arrival rule (limited support), showing`,
+        );
+        console.warn(
+          "DO Label: New arrival rule is not fully supported on frontend due to missing product creation date",
+        );
+        return true;
+      }
+    }
+
+    console.log(
+      `DO Label Collection: Label "${label.text}" - no conditions matched, not showing`,
+    );
+    return false; // Default: don't show label if no conditions match
   }
 
   function checkSpecificProductCondition(label, normalizedProductId) {
@@ -416,76 +660,189 @@
   }
 
   function injectLabelsIntoCollection(labels) {
+    console.log(
+      "DO Label Collection: injectLabelsIntoCollection called with labels:",
+      labels,
+    );
+
     const cards = getCollectionProductCards();
+    console.log(`DO Label Collection: Processing ${cards.length} cards`);
 
     cards.forEach((card, index) => {
+      console.log(
+        `DO Label Collection: Processing card ${index + 1}/${cards.length}`,
+      );
+
       const productId = getProductIdFromCard(card);
+      console.log(
+        `DO Label Collection: Card ${index + 1} product ID:`,
+        productId,
+      );
+
       if (!productId) {
+        console.log(
+          `DO Label Collection: Card ${index + 1} - No product ID found, skipping`,
+        );
         return;
       }
 
       const mediaContainer = getCardMediaContainer(card);
+      console.log(
+        `DO Label Collection: Card ${index + 1} media container:`,
+        mediaContainer,
+      );
+
       if (!mediaContainer) {
+        console.log(
+          `DO Label Collection: Card ${index + 1} - No media container found, skipping`,
+        );
         return;
       }
 
       const containerPosition = getComputedStyle(mediaContainer).position;
       if (containerPosition === "static") {
         mediaContainer.style.position = "relative";
+        console.log(
+          `DO Label Collection: Card ${index + 1} - Set position to relative`,
+        );
       }
 
       // Clear previously injected labels to avoid duplicates on re-renders
       const existingLabels =
         mediaContainer.querySelectorAll(".do-product-label");
       if (existingLabels.length > 0) {
+        console.log(
+          `DO Label Collection: Card ${index + 1} - Removing ${existingLabels.length} existing labels`,
+        );
         existingLabels.forEach((el) => el.remove());
       }
 
+      let labelsAdded = 0;
       labels.forEach((label) => {
-        if (shouldShowLabel(label, productId)) {
+        console.log(
+          `DO Label Collection: Card ${index + 1} - Checking label:`,
+          label.text,
+        );
+
+        if (shouldShowLabel(label, productId, card)) {
+          console.log(
+            `DO Label Collection: Card ${index + 1} - Adding label:`,
+            label.text,
+          );
           const labelEl = createLabelElement(label);
           mediaContainer.appendChild(labelEl);
+          labelsAdded++;
+        } else {
+          console.log(
+            `DO Label Collection: Card ${index + 1} - Label not shown:`,
+            label.text,
+          );
         }
       });
+
+      console.log(
+        `DO Label Collection: Card ${index + 1} - Added ${labelsAdded} labels`,
+      );
     });
+
+    console.log("DO Label Collection: injectLabelsIntoCollection completed");
   }
 
   async function fetchLabels() {
+    console.log("DO Label Collection: fetchLabels called");
+    console.log("DO Label Collection: API endpoints to try:", API_ENDPOINTS);
+
     // Try each endpoint until one works
     for (const endpoint of API_ENDPOINTS) {
       try {
+        console.log(`DO Label Collection: Trying endpoint: ${endpoint}`);
         const response = await fetch(endpoint);
+        console.log(
+          `DO Label Collection: Endpoint ${endpoint} response status:`,
+          response.status,
+        );
+
         if (response.ok) {
           const labels = await response.json();
+          console.log(
+            `DO Label Collection: Successfully fetched labels from ${endpoint}:`,
+            labels,
+          );
+
+          // Debug: Log each label structure
+          if (labels && Array.isArray(labels)) {
+            console.log(
+              `DO Label Collection: Total labels fetched: ${labels.length}`,
+            );
+            labels.forEach((label, index) => {
+              console.log(
+                `DO Label Collection: Label ${index + 1} structure:`,
+                {
+                  id: label.id,
+                  text: label.text,
+                  condition: label.condition,
+                  ruleType: label.ruleType,
+                  ruleConfig: label.ruleConfig,
+                  active: label.active,
+                  productIds: label.productIds,
+                  background: label.background,
+                  position: label.position,
+                },
+              );
+            });
+          }
+
           return labels;
+        } else {
+          console.log(
+            `DO Label Collection: Endpoint ${endpoint} failed with status:`,
+            response.status,
+          );
         }
-      } catch {
-        // Silent fail
+      } catch (error) {
+        console.error(
+          `DO Label Collection: Error fetching from ${endpoint}:`,
+          error,
+        );
       }
     }
 
+    console.log(
+      "DO Label Collection: All endpoints failed, returning empty array",
+    );
     return [];
   }
   // Main execution for collection pages
   function initCollectionLabels() {
     const onCollectionPage = isCollectionPage();
 
+    console.log("DO Label Collection: initCollectionLabels called");
+    console.log("DO Label Collection: onCollectionPage =", onCollectionPage);
+
     if (!onCollectionPage) {
+      console.log("DO Label Collection: Not on collection page, exiting");
       return;
     }
 
     // Fetch and inject labels
     (async () => {
       try {
+        console.log("DO Label Collection: Fetching labels...");
         const labels = await fetchLabels();
+        console.log("DO Label Collection: Fetched labels:", labels);
 
         if (!labels || labels.length === 0) {
+          console.log("DO Label Collection: No labels found");
           return;
         }
 
+        console.log("DO Label Collection: Injecting labels into collection...");
         injectLabelsIntoCollection(labels);
       } catch (error) {
-        // Silent fail
+        console.error(
+          "DO Label Collection: Error in initCollectionLabels:",
+          error,
+        );
       }
     })();
   }

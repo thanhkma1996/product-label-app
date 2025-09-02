@@ -10,12 +10,25 @@ export function getMatchingSpecialPriceProductsCount(
   specialPriceFrom,
   specialPriceTo,
 ) {
+  if (!products || !Array.isArray(products)) {
+    return 0;
+  }
+
+  const fromPrice = parseFloat(specialPriceFrom) || 0;
+  const toPrice = parseFloat(specialPriceTo) || 999999;
+
   const matchingProducts = products.filter((product) => {
+    // Check if product has compareAtPrice (original price)
+    if (!product.compareAtPrice) {
+      return false;
+    }
+
     const comparePrice = parseFloat(product.compareAtPrice);
-    const fromPrice = parseFloat(specialPriceFrom) || 0;
-    const toPrice = parseFloat(specialPriceTo) || 999999;
-    return comparePrice && comparePrice >= fromPrice && comparePrice <= toPrice;
+
+    // Check if price is within the specified range
+    return comparePrice >= fromPrice && comparePrice <= toPrice;
   });
+
   return matchingProducts.length;
 }
 
@@ -26,12 +39,32 @@ export function getMatchingSpecialPriceProductsCount(
  * @returns {number} Count of matching products
  */
 export function getMatchingNewArrivalProductsCount(products, newArrivalDays) {
+  if (!products || !Array.isArray(products)) {
+    return 0;
+  }
+
+  if (!newArrivalDays || newArrivalDays <= 0) {
+    return 0;
+  }
+
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - newArrivalDays);
 
   const matchingProducts = products.filter((product) => {
-    const productDate = new Date(product.createdAt);
-    return productDate >= cutoffDate;
+    // Check if product has creation date
+    if (!product.createdAt) {
+      return false;
+    }
+
+    try {
+      const productDate = new Date(product.createdAt);
+
+      // Check if product was created within the specified days
+      return productDate >= cutoffDate;
+    } catch (error) {
+      console.warn("Error parsing product creation date:", error);
+      return false;
+    }
   });
 
   return matchingProducts.length;
@@ -44,11 +77,27 @@ export function getMatchingNewArrivalProductsCount(products, newArrivalDays) {
  * @returns {Array} Filtered products
  */
 export function getFilteredProducts(products, searchTerm) {
-  if (!searchTerm) return products;
+  if (!products || !Array.isArray(products)) {
+    return [];
+  }
 
-  return products.filter((product) =>
-    product.title.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  if (!searchTerm || typeof searchTerm !== "string") {
+    return products;
+  }
+
+  const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+
+  if (normalizedSearchTerm === "") {
+    return products;
+  }
+
+  return products.filter((product) => {
+    if (!product || !product.title) {
+      return false;
+    }
+
+    return product.title.toLowerCase().includes(normalizedSearchTerm);
+  });
 }
 
 /**
@@ -73,27 +122,35 @@ export function getCurrentRuleDescription(
     return "This label will be applied to ALL products in your store.";
   }
 
-  if (productCondition[0] === "special_price") {
-    return `This label will be applied to products with special prices between $${specialPriceFrom || "0"} and $${specialPriceTo || "∞"}.`;
+  if (productCondition[0] === "rule_based") {
+    if (ruleType === "special_price") {
+      return `This label will be applied to products with special prices between $${specialPriceFrom || "0"} and $${specialPriceTo || "∞"}.`;
+    }
+
+    if (ruleType === "new_arrival") {
+      return `This label will be applied to products created in the last ${newArrivalDays} days.`;
+    }
+
+    return "Please select a rule type to configure this label.";
   }
 
-  if (productCondition[0] === "new_arrival") {
-    return `This label will be applied to products created in the last ${newArrivalDays} days.`;
+  if (productCondition[0] === "specific") {
+    if (ruleType === "specific") {
+      return `This label will be applied to ${selectedProductIds.length} manually selected products.`;
+    }
+
+    if (ruleType === "special_price") {
+      return `This label will be applied to products with special prices between $${specialPriceFrom || "0"} and $${specialPriceTo || "∞"}.`;
+    }
+
+    if (ruleType === "new_arrival") {
+      return `This label will be applied to products created in the last ${newArrivalDays} days.`;
+    }
+
+    return "Please select a rule type to configure this label.";
   }
 
-  if (productCondition[0] === "specific" && ruleType === "specific") {
-    return `This label will be applied to ${selectedProductIds.length} manually selected products.`;
-  }
-
-  if (productCondition[0] === "specific" && ruleType === "special_price") {
-    return `This label will be applied to products with special prices between $${specialPriceFrom || "0"} and $${specialPriceTo || "∞"}.`;
-  }
-
-  if (productCondition[0] === "specific" && ruleType === "new_arrival") {
-    return `This label will be applied to products created in the last ${newArrivalDays} days.`;
-  }
-
-  return "Please select a rule type to configure this label.";
+  return "Please select a product condition to configure this label.";
 }
 
 /**
@@ -102,7 +159,23 @@ export function getCurrentRuleDescription(
  * @returns {string} Formatted date string
  */
 export function formatDate(dateString) {
-  return new Date(dateString).toLocaleString();
+  if (!dateString) {
+    return "N/A";
+  }
+
+  try {
+    const date = new Date(dateString);
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return "Invalid Date";
+    }
+
+    return date.toLocaleString();
+  } catch (error) {
+    console.warn("Error formatting date:", error);
+    return "Invalid Date";
+  }
 }
 
 /**
@@ -112,6 +185,139 @@ export function formatDate(dateString) {
  * @returns {string} Product title or ID if not found
  */
 export function getProductTitleById(products, productId) {
-  const product = products.find((p) => p.id === productId);
-  return product ? product.title : productId;
+  if (!products || !Array.isArray(products)) {
+    return productId || "Unknown Product";
+  }
+
+  if (!productId) {
+    return "Unknown Product";
+  }
+
+  const product = products.find((p) => {
+    if (!p || !p.id) {
+      return false;
+    }
+
+    // Try exact match first
+    if (p.id === productId) {
+      return true;
+    }
+
+    // Try string comparison
+    if (p.id.toString() === productId.toString()) {
+      return true;
+    }
+
+    // Try numeric comparison if both are numbers
+    if (!isNaN(p.id) && !isNaN(productId)) {
+      return parseInt(p.id) === parseInt(productId);
+    }
+
+    return false;
+  });
+
+  if (product && product.title) {
+    return product.title;
+  }
+
+  return productId || "Unknown Product";
+}
+
+/**
+ * Validate rule configuration for special price
+ * @param {Object} ruleConfig - Rule configuration object
+ * @returns {Object} Validation result with isValid and message
+ */
+export function validateSpecialPriceRule(ruleConfig) {
+  if (!ruleConfig) {
+    return { isValid: false, message: "Rule configuration is required" };
+  }
+
+  const { from, to } = ruleConfig;
+
+  if (from === undefined || to === undefined) {
+    return {
+      isValid: false,
+      message: 'Both "from" and "to" values are required',
+    };
+  }
+
+  const fromPrice = parseFloat(from);
+  const toPrice = parseFloat(to);
+
+  if (isNaN(fromPrice) || isNaN(toPrice)) {
+    return { isValid: false, message: "Price values must be valid numbers" };
+  }
+
+  if (fromPrice < 0 || toPrice < 0) {
+    return { isValid: false, message: "Price values cannot be negative" };
+  }
+
+  if (fromPrice > toPrice) {
+    return {
+      isValid: false,
+      message: '"From" price cannot be greater than "to" price',
+    };
+  }
+
+  return { isValid: true, message: "Special price rule is valid" };
+}
+
+/**
+ * Validate rule configuration for new arrival
+ * @param {Object} ruleConfig - Rule configuration object
+ * @returns {Object} Validation result with isValid and message
+ */
+export function validateNewArrivalRule(ruleConfig) {
+  if (!ruleConfig) {
+    return { isValid: false, message: "Rule configuration is required" };
+  }
+
+  const { days } = ruleConfig;
+
+  if (days === undefined) {
+    return { isValid: false, message: "Days value is required" };
+  }
+
+  const daysValue = parseInt(days);
+
+  if (isNaN(daysValue) || daysValue <= 0) {
+    return { isValid: false, message: "Days must be a positive number" };
+  }
+
+  if (daysValue > 365) {
+    return { isValid: false, message: "Days cannot exceed 365" };
+  }
+
+  return { isValid: true, message: "New arrival rule is valid" };
+}
+
+/**
+ * Get rule type display name
+ * @param {string} ruleType - Rule type string
+ * @returns {string} Human readable rule type name
+ */
+export function getRuleTypeDisplayName(ruleType) {
+  const ruleTypeNames = {
+    special_price: "Special Price",
+    new_arrival: "New Arrival",
+    specific: "Specific Products",
+  };
+
+  return ruleTypeNames[ruleType] || ruleType || "Unknown";
+}
+
+/**
+ * Get condition display name
+ * @param {string} condition - Condition string
+ * @returns {string} Human readable condition name
+ */
+export function getConditionDisplayName(condition) {
+  const conditionNames = {
+    all: "All Products",
+    specific: "Specific Products",
+    rule_based: "Rule Based",
+  };
+
+  return conditionNames[condition] || condition || "Unknown";
 }
