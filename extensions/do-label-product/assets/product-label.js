@@ -4,7 +4,7 @@
   // Configuration - Multiple endpoints for fallback
   const API_ENDPOINTS = [
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
-    "https://belkin-cope-susan-strap.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
+    "https://page-fast-smile-printed.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
 
   const LABEL_STYLES = {
@@ -86,8 +86,14 @@
     // Try to get product information from various sources
     const product = {};
 
+    console.log("DO Label Product: getCurrentProduct called");
+
     // Get product ID
     product.id = getCurrentProductId();
+    console.log(
+      "DO Label Product: getCurrentProduct - product ID:",
+      product.id,
+    );
 
     // Get compare at price (original price)
     const compareAtPriceElement =
@@ -97,18 +103,61 @@
       document.querySelector(".product-single__price--compare") ||
       document.querySelector("[data-product-compare-price]");
 
+    console.log(
+      "DO Label Product: getCurrentProduct - compareAtPriceElement found:",
+      compareAtPriceElement,
+    );
+
     if (compareAtPriceElement) {
       const comparePriceText =
         compareAtPriceElement.textContent || compareAtPriceElement.innerText;
+      console.log(
+        "DO Label Product: getCurrentProduct - comparePriceText:",
+        comparePriceText,
+      );
+
       if (comparePriceText) {
         // Extract price from text (remove currency symbols and extra text)
         const priceMatch = comparePriceText.match(/[\d,]+\.?\d*/);
+        console.log(
+          "DO Label Product: getCurrentProduct - priceMatch:",
+          priceMatch,
+        );
+
         if (priceMatch) {
           product.compareAtPrice = priceMatch[0].replace(/,/g, "");
+          console.log(
+            "DO Label Product: getCurrentProduct - extracted price:",
+            product.compareAtPrice,
+          );
         }
       }
+    } else {
+      console.log(
+        "DO Label Product: getCurrentProduct - no compare price element found",
+      );
+      console.log(
+        "DO Label Product: getCurrentProduct - available price elements:",
+        {
+          dataComparePrice: document.querySelector("[data-compare-price]"),
+          priceCompare: document.querySelector(".price__compare"),
+          productPriceCompare: document.querySelector(
+            ".product__price--compare",
+          ),
+          productSinglePriceCompare: document.querySelector(
+            ".product-single__price--compare",
+          ),
+          dataProductComparePrice: document.querySelector(
+            "[data-product-compare-price]",
+          ),
+        },
+      );
     }
 
+    console.log(
+      "DO Label Product: getCurrentProduct - returning product:",
+      product,
+    );
     return product;
   }
 
@@ -293,14 +342,21 @@
   }
 
   function shouldShowLabel(label, productId) {
+    console.log(
+      `DO Label Product: shouldShowLabel called for label "${label.text}" and product ${productId}`,
+    );
+
     // Validate input parameters
     if (!label || typeof label !== "object") {
-      console.warn("DO Label: Invalid label object provided");
+      console.warn("DO Label Product: Invalid label object provided");
       return false;
     }
 
     // Early return if label is inactive
     if (label.active === false) {
+      console.log(
+        `DO Label Product: Label "${label.text}" is inactive, not showing`,
+      );
       return false;
     }
 
@@ -308,9 +364,28 @@
     const normalizedProductId = normalizeProductId(productId);
     if (!normalizedProductId) {
       console.warn(
-        `DO Label: Product ID is null or undefined for label "${label.text}"`,
+        `DO Label Product: Product ID is null or undefined for label "${label.text}"`,
       );
       return false;
+    }
+
+    console.log(
+      `DO Label Product: Label "${label.text}" - condition: ${label.condition}, ruleType: ${label.ruleType}`,
+    );
+
+    // Debug: Log full label object for rule_based labels
+    if (label.condition === "rule_based") {
+      console.log(
+        `DO Label Product: Full label object for rule_based label "${label.text}":`,
+        {
+          id: label.id,
+          text: label.text,
+          condition: label.condition,
+          ruleType: label.ruleType,
+          ruleConfig: label.ruleConfig,
+          active: label.active,
+        },
+      );
     }
 
     // CONDITION 1: Show on all products (default behavior)
@@ -330,10 +405,30 @@
 
     // CONDITION 3: Show based on rule-based conditions
     if (label.condition === "rule_based" && label.ruleType) {
+      console.log(
+        `DO Label Product: Label "${label.text}" - checking rule-based condition`,
+      );
+
       // Special Price Rule
       if (label.ruleType === "special_price" && label.ruleConfig) {
+        console.log(
+          `DO Label Product: Label "${label.text}" - checking special price rule`,
+        );
+        console.log(
+          `DO Label Product: Label "${label.text}" - ruleConfig:`,
+          label.ruleConfig,
+        );
+
         const product = getCurrentProduct();
+        console.log(
+          `DO Label Product: Label "${label.text}" - product data:`,
+          product,
+        );
+
         if (!product || !product.compareAtPrice) {
+          console.log(
+            `DO Label Product: Label "${label.text}" - no compare price, not showing`,
+          );
           return false; // No compare price, don't show label
         }
 
@@ -341,11 +436,32 @@
         const fromPrice = parseFloat(label.ruleConfig.from) || 0;
         const toPrice = parseFloat(label.ruleConfig.to) || 999999;
 
+        console.log(
+          `DO Label Product: Label "${label.text}" - price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
+        );
+        console.log(
+          `DO Label Product: Label "${label.text}" - price comparison details:`,
+          {
+            comparePrice: comparePrice,
+            fromPrice: fromPrice,
+            toPrice: toPrice,
+            isInRange: comparePrice >= fromPrice && comparePrice <= toPrice,
+            rawComparePrice: product.compareAtPrice,
+            rawRuleConfig: label.ruleConfig,
+          },
+        );
+
         // Check if product price is within the specified range
         if (comparePrice < fromPrice || comparePrice > toPrice) {
+          console.log(
+            `DO Label Product: Label "${label.text}" - price outside range, not showing`,
+          );
           return false; // Price outside range, don't show label
         }
 
+        console.log(
+          `DO Label Product: Label "${label.text}" - price in range, showing`,
+        );
         return true; // Price within range, show label
       }
 
@@ -399,86 +515,338 @@
   }
 
   function injectLabels(labels, productId) {
+    console.log("DO Label Product: injectLabels called with labels:", labels);
+    console.log("DO Label Product: injectLabels - productId:", productId);
+
+    // Debug: Log each label structure in detail
+    if (labels && Array.isArray(labels)) {
+      console.log(
+        `DO Label Product: Total labels to process: ${labels.length}`,
+      );
+      labels.forEach((label, index) => {
+        console.log(`DO Label Product: Label ${index + 1} details:`, {
+          id: label.id,
+          text: label.text,
+          condition: label.condition,
+          ruleType: label.ruleType,
+          ruleConfig: label.ruleConfig,
+          active: label.active,
+          productIds: label.productIds,
+          background: label.background,
+          position: label.position,
+        });
+      });
+    }
+
     // Find product image container with more comprehensive selectors
-    const productImageContainer =
-      // Dawn theme
-      document.querySelector(".product__media-list .product__media-item") ||
-      document.querySelector(".product__media-list") ||
-      document.querySelector(".product__media-container") ||
-      document.querySelector(".product__media-item") ||
-      // Debut theme
-      document.querySelector(".product-single__media") ||
-      document.querySelector(".product-single__photo") ||
-      // Other common themes
-      document.querySelector(".product__image-container") ||
-      document.querySelector("[data-product-image]") ||
-      document.querySelector(".product__photo") ||
-      document.querySelector(".product-image") ||
-      // Fallback to main product container
-      document.querySelector(".product__media") ||
-      document.querySelector(".product-single") ||
-      document.querySelector("[data-product-container]");
+    // Priority: Look for specific media item containers first
+    const selectors = [
+      ".product__media-item",
+      ".product__media-list .product__media-item",
+      ".product__media-list",
+      ".product__media-container",
+      ".product-single__media",
+      ".product-single__photo",
+      ".product__image-container",
+      "[data-product-image]",
+      ".product__photo",
+      ".product-image",
+      ".product__media",
+      ".product-single",
+      "[data-product-container]",
+    ];
+
+    let productImageContainer = null;
+    let selectedSelector = null;
+
+    // Try each selector and log which one is found
+    console.log("DO Label Product: Checking all available containers:");
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+      if (element) {
+        console.log(
+          `DO Label Product: Found container with selector "${selector}":`,
+          {
+            element: element,
+            tagName: element.tagName,
+            className: element.className,
+            id: element.id,
+            hasImages: element.querySelectorAll("img").length,
+          },
+        );
+        if (!productImageContainer) {
+          productImageContainer = element;
+          selectedSelector = selector;
+        }
+      } else {
+        console.log(
+          `DO Label Product: No container found with selector "${selector}"`,
+        );
+      }
+    }
+
+    console.log(
+      `DO Label Product: Selected container with selector "${selectedSelector}":`,
+      productImageContainer,
+    );
+
+    // Force use product__media-item if available, even if other containers were found first
+    const preferredMediaItem = document.querySelector(".product__media-item");
+    if (preferredMediaItem) {
+      console.log(
+        "DO Label Product: Found preferred .product__media-item, using it instead:",
+        preferredMediaItem,
+      );
+      productImageContainer = preferredMediaItem;
+      selectedSelector = ".product__media-item";
+    }
+
+    console.log(
+      "DO Label Product: injectLabels - final productImageContainer:",
+      productImageContainer,
+    );
+    console.log(
+      "DO Label Product: injectLabels - final selectedSelector:",
+      selectedSelector,
+    );
 
     if (!productImageContainer) {
+      console.log(
+        "DO Label Product: injectLabels - no product image container found, returning",
+      );
       return;
     }
+
+    // Debug: Log container details
+    console.log("DO Label Product: injectLabels - container details:", {
+      tagName: productImageContainer.tagName,
+      className: productImageContainer.className,
+      id: productImageContainer.id,
+      position: getComputedStyle(productImageContainer).position,
+      hasImages: productImageContainer.querySelectorAll("img").length,
+    });
 
     // Set container to relative positioning if needed
     const containerPosition = getComputedStyle(productImageContainer).position;
 
     if (containerPosition === "static") {
       productImageContainer.style.position = "relative";
+      console.log(
+        "DO Label Product: injectLabels - set container position to relative",
+      );
     }
 
-    productImageContainer
-      .querySelectorAll(".do-product-label")
-      .forEach((el) => el.remove());
+    // Remove existing labels
+    const existingLabels =
+      productImageContainer.querySelectorAll(".do-product-label");
+    if (existingLabels.length > 0) {
+      console.log(
+        `DO Label Product: injectLabels - removing ${existingLabels.length} existing labels`,
+      );
+      existingLabels.forEach((el) => el.remove());
+    }
 
+    let labelsAdded = 0;
     labels.forEach((label) => {
+      console.log(
+        `DO Label Product: injectLabels - checking label:`,
+        label.text,
+      );
+
       if (shouldShowLabel(label, productId)) {
+        console.log(
+          `DO Label Product: injectLabels - adding label:`,
+          label.text,
+        );
         const labelEl = createLabelElement(label);
         productImageContainer.appendChild(labelEl);
+        labelsAdded++;
+      } else {
+        console.log(
+          `DO Label Product: injectLabels - label not shown:`,
+          label.text,
+        );
       }
     });
+
+    console.log(`DO Label Product: injectLabels - added ${labelsAdded} labels`);
   }
 
   async function fetchLabels() {
+    console.log("DO Label Product: fetchLabels called");
+    console.log("DO Label Product: API endpoints to try:", API_ENDPOINTS);
+
     // Try each endpoint until one works
     for (const endpoint of API_ENDPOINTS) {
       try {
+        console.log(`DO Label Product: Trying endpoint: ${endpoint}`);
         const response = await fetch(endpoint);
+        console.log(
+          `DO Label Product: Endpoint ${endpoint} response status:`,
+          response.status,
+        );
+
         if (response.ok) {
           const labels = await response.json();
+          console.log(
+            `DO Label Product: Successfully fetched labels from ${endpoint}:`,
+            labels,
+          );
+
+          // Debug: Log each label structure
+          if (labels && Array.isArray(labels)) {
+            console.log(
+              `DO Label Product: Total labels fetched: ${labels.length}`,
+            );
+            labels.forEach((label, index) => {
+              console.log(`DO Label Product: Label ${index + 1} structure:`, {
+                id: label.id,
+                text: label.text,
+                condition: label.condition,
+                ruleType: label.ruleType,
+                ruleConfig: label.ruleConfig,
+                active: label.active,
+                productIds: label.productIds,
+                background: label.background,
+                position: label.position,
+              });
+            });
+          }
+
           return labels;
+        } else {
+          console.log(
+            `DO Label Product: Endpoint ${endpoint} failed with status:`,
+            response.status,
+          );
         }
-      } catch {
-        // Silent fail
+      } catch (error) {
+        console.error(
+          `DO Label Product: Error fetching from ${endpoint}:`,
+          error,
+        );
       }
     }
 
+    console.log(
+      "DO Label Product: All endpoints failed, returning empty array",
+    );
     return [];
+  }
+
+  // Debug helper function to analyze product page structure
+  function debugProductPageStructure() {
+    console.log("=== DO Label Product: Product Page Structure Analysis ===");
+
+    // Check URL
+    console.log("URL Analysis:", {
+      href: window.location.href,
+      pathname: window.location.pathname,
+      isProductPage: /\/products\//.test(window.location.pathname),
+    });
+
+    // Check product ID detection
+    const productId = getCurrentProductId();
+    console.log("Product ID Detection:", {
+      productId: productId,
+      hasProductId: !!productId,
+    });
+
+    // Check available price elements
+    const priceElements = document.querySelectorAll(
+      "[data-compare-price], .price__compare, .product__price--compare, .product-single__price--compare, [data-product-compare-price]",
+    );
+    console.log("Available Price Elements:", {
+      total: priceElements.length,
+      elements: Array.from(priceElements).map((el, index) => ({
+        index: index + 1,
+        tagName: el.tagName,
+        className: el.className,
+        textContent: el.textContent,
+        dataComparePrice: el.getAttribute("data-compare-price"),
+        dataProductComparePrice: el.getAttribute("data-product-compare-price"),
+      })),
+    });
+
+    // Check product image containers
+    const imageContainers = [
+      ".product__media-list .product__media-item",
+      ".product__media-list",
+      ".product__media-container",
+      ".product__media-item",
+      ".product-single__media",
+      ".product-single__photo",
+      ".product__image-container",
+      "[data-product-image]",
+      ".product__photo",
+      ".product-image",
+      ".product__media",
+      ".product-single",
+      "[data-product-container]",
+    ];
+
+    console.log("Available Image Containers:", {
+      containers: imageContainers.map((selector) => ({
+        selector: selector,
+        found: !!document.querySelector(selector),
+        element: document.querySelector(selector),
+      })),
+    });
+
+    // Check theme detection
+    console.log("Theme Detection:", {
+      hasShopify: typeof window.Shopify !== "undefined",
+      themeName:
+        document.documentElement.getAttribute("data-theme-name") || "Unknown",
+      bodyClasses: document.body.className,
+    });
+
+    console.log("=== End Product Page Structure Analysis ===");
   }
 
   // Main execution for product pages
   function initProductLabels() {
+    console.log("DO Label Product: initProductLabels called");
+
+    // Run debug analysis
+    debugProductPageStructure();
+
     // Check if we're on a product page
     const onProductPage =
       /\/products\//.test(window.location.pathname) || !!getCurrentProductId();
 
+    console.log("DO Label Product: onProductPage =", onProductPage);
+
     if (!onProductPage) {
+      console.log("DO Label Product: Not on product page, exiting");
       return; // Not a product page, exit early
     }
 
     // Fetch and inject labels
     (async () => {
-      const labels = await fetchLabels();
-      if (!labels || labels.length === 0) {
-        return;
-      }
+      try {
+        console.log("DO Label Product: Fetching labels...");
+        const labels = await fetchLabels();
+        console.log("DO Label Product: Fetched labels:", labels);
 
-      const productId = getCurrentProductId();
-      if (productId) {
-        injectLabels(labels, productId);
+        if (!labels || labels.length === 0) {
+          console.log("DO Label Product: No labels found");
+          return;
+        }
+
+        const productId = getCurrentProductId();
+        console.log("DO Label Product: Product ID:", productId);
+
+        if (productId) {
+          console.log("DO Label Product: Injecting labels...");
+          injectLabels(labels, productId);
+        } else {
+          console.log(
+            "DO Label Product: No product ID found, cannot inject labels",
+          );
+        }
+      } catch (error) {
+        console.error("DO Label Product: Error in initProductLabels:", error);
       }
     })();
   }

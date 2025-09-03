@@ -4,7 +4,7 @@
   // Configuration - Multiple endpoints for fallback
   const API_ENDPOINTS = [
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
-    "https://belkin-cope-susan-strap.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
+    "https://page-fast-smile-printed.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
 
   const LABEL_STYLES = {
@@ -109,26 +109,74 @@
     // Try to get product information from a specific product card
     const product = {};
 
+    // console.log(
+    //   "DO Label Collection: getProductFromCard called for card:",
+    //   cardEl,
+    // );
+
     // Get compare at price from the card
     const compareAtPriceElement =
       cardEl.querySelector("[data-compare-price]") ||
       cardEl.querySelector(".price__compare") ||
       cardEl.querySelector(".product__price--compare") ||
       cardEl.querySelector(".product-single__price--compare") ||
+      cardEl.querySelector(".price-item") || 
       cardEl.querySelector("[data-product-compare-price]");
+
+
+    console.log(
+      "DO Label Collection: getProductFromCard - compareAtPriceElement found:",
+      compareAtPriceElement,
+    );
 
     if (compareAtPriceElement) {
       const comparePriceText =
         compareAtPriceElement.textContent || compareAtPriceElement.innerText;
+      console.log(
+        "DO Label Collection: getProductFromCard - comparePriceText:",
+        comparePriceText,
+      );
+
       if (comparePriceText) {
         // Extract price from text (remove currency symbols and extra text)
         const priceMatch = comparePriceText.match(/[\d,]+\.?\d*/);
+        console.log(
+          "DO Label Collection: getProductFromCard - priceMatch:",
+          priceMatch,
+        );
+
         if (priceMatch) {
           product.compareAtPrice = priceMatch[0].replace(/,/g, "");
+          console.log(
+            "DO Label Collection: getProductFromCard - extracted price:",
+            product.compareAtPrice,
+          );
         }
       }
+    } else {
+      console.log(
+        "DO Label Collection: getProductFromCard - no compare price element found",
+      );
+      console.log(
+        "DO Label Collection: getProductFromCard - available price elements:",
+        {
+          dataComparePrice: cardEl.querySelector("[data-compare-price]"),
+          priceCompare: cardEl.querySelector(".price__compare"),
+          productPriceCompare: cardEl.querySelector(".product__price--compare"),
+          productSinglePriceCompare: cardEl.querySelector(
+            ".product-single__price--compare",
+          ),
+          dataProductComparePrice: cardEl.querySelector(
+            "[data-product-compare-price]",
+          ),
+        },
+      );
     }
 
+    console.log(
+      "DO Label Collection: getProductFromCard - returning product:",
+      product,
+    );
     return product;
   }
 
@@ -160,32 +208,79 @@
   }
 
   function getProductIdFromCard(cardEl) {
+    console.log(
+      "DO Label Collection: getProductIdFromCard called for card:",
+      cardEl,
+    );
+
     // Show data-product-id attribute (trùng với productIds trong database)
     const byId = cardEl.getAttribute("data-product-id");
+    console.log(
+      "DO Label Collection: getProductIdFromCard - data-product-id:",
+      byId,
+    );
     if (byId) {
+      console.log(
+        "DO Label Collection: getProductIdFromCard - found by data-product-id:",
+        byId,
+      );
       return byId;
     }
 
     // Check ID in card--media element
     const mediaElement = cardEl.querySelector(".card--media");
+    console.log(
+      "DO Label Collection: getProductIdFromCard - mediaElement:",
+      mediaElement,
+    );
     if (mediaElement) {
       const mediaProductId = mediaElement.getAttribute("data-product-id");
+      console.log(
+        "DO Label Collection: getProductIdFromCard - mediaProductId:",
+        mediaProductId,
+      );
       if (mediaProductId) {
+        console.log(
+          "DO Label Collection: getProductIdFromCard - found by media data-product-id:",
+          mediaProductId,
+        );
         return mediaProductId;
       }
     }
 
     // Fallback: data-product-handle
     const byHandle = cardEl.getAttribute("data-product-handle");
+    console.log(
+      "DO Label Collection: getProductIdFromCard - data-product-handle:",
+      byHandle,
+    );
     if (byHandle) {
+      console.log(
+        "DO Label Collection: getProductIdFromCard - found by data-product-handle:",
+        byHandle,
+      );
       return byHandle;
     }
 
     // Try anchor href
     const productLink = cardEl.querySelector('a[href*="/products/"]');
+    console.log(
+      "DO Label Collection: getProductIdFromCard - productLink:",
+      productLink,
+    );
     if (productLink) {
-      const handle = extractHandleFromHref(productLink.getAttribute("href"));
+      const href = productLink.getAttribute("href");
+      console.log("DO Label Collection: getProductIdFromCard - href:", href);
+      const handle = extractHandleFromHref(href);
+      console.log(
+        "DO Label Collection: getProductIdFromCard - extracted handle:",
+        handle,
+      );
       if (handle) {
+        console.log(
+          "DO Label Collection: getProductIdFromCard - found by href handle:",
+          handle,
+        );
         return handle;
       }
     }
@@ -194,18 +289,36 @@
     const productJsonScript = cardEl.querySelector(
       'script[type="application/json"][data-product-json]',
     );
+    console.log(
+      "DO Label Collection: getProductIdFromCard - productJsonScript:",
+      productJsonScript,
+    );
     if (productJsonScript) {
       try {
         const data = JSON.parse(productJsonScript.textContent);
+        console.log(
+          "DO Label Collection: getProductIdFromCard - parsed JSON data:",
+          data,
+        );
         if (data && (data.handle || data.id)) {
           const result = (data.handle || data.id).toString();
+          console.log(
+            "DO Label Collection: getProductIdFromCard - found by JSON:",
+            result,
+          );
           return result;
         }
-      } catch (_) {
-        // ignore
+      } catch (error) {
+        console.log(
+          "DO Label Collection: getProductIdFromCard - JSON parse error:",
+          error,
+        );
       }
     }
 
+    console.log(
+      "DO Label Collection: getProductIdFromCard - no product ID found",
+    );
     return null;
   }
 
@@ -267,6 +380,11 @@
 
   function getCollectionProductCards() {
     console.log("DO Label Collection: getCollectionProductCards called");
+    console.log("DO Label Collection: Current URL:", window.location.href);
+    console.log(
+      "DO Label Collection: Current pathname:",
+      window.location.pathname,
+    );
 
     // Find likely product card containers
     const cards = new Set();
@@ -277,11 +395,22 @@
         `DO Label Collection: Selector "${sel}" found ${elements.length} elements`,
       );
 
-      elements.forEach((el) => {
+      elements.forEach((el, index) => {
         // Only keep elements that actually contain a product link
-        if (el.querySelector('a[href*="/products/"]')) {
+        const productLink = el.querySelector('a[href*="/products/"]');
+        if (productLink) {
           cards.add(el);
-          console.log(`DO Label Collection: Added card with selector "${sel}"`);
+          console.log(
+            `DO Label Collection: Added card ${index + 1} with selector "${sel}"`,
+          );
+          console.log(
+            `DO Label Collection: Card ${index + 1} product link:`,
+            productLink.href,
+          );
+        } else {
+          console.log(
+            `DO Label Collection: Card ${index + 1} with selector "${sel}" has no product link`,
+          );
         }
       });
     });
@@ -433,6 +562,21 @@
       `DO Label Collection: Label "${label.text}" - condition: ${label.condition}, ruleType: ${label.ruleType}`,
     );
 
+    // Debug: Log full label object for rule_based labels
+    if (label.condition === "rule_based") {
+      console.log(
+        `DO Label Collection: Full label object for rule_based label "${label.text}":`,
+        {
+          id: label.id,
+          text: label.text,
+          condition: label.condition,
+          ruleType: label.ruleType,
+          ruleConfig: label.ruleConfig,
+          active: label.active,
+        },
+      );
+    }
+
     // CONDITION 1: Show on all products (default behavior)
     if (
       !label.condition ||
@@ -465,6 +609,10 @@
         console.log(
           `DO Label Collection: Label "${label.text}" - checking special price rule`,
         );
+        console.log(
+          `DO Label Collection: Label "${label.text}" - ruleConfig:`,
+          label.ruleConfig,
+        );
 
         const product = cardEl
           ? getProductFromCard(cardEl)
@@ -474,9 +622,45 @@
           product,
         );
 
+        // Debug: Log detailed product price information
+        if (cardEl) {
+          console.log(
+            `DO Label Collection: Label "${label.text}" - searching for compare price in card:`,
+            {
+              cardHTML: cardEl.outerHTML.substring(0, 300) + "...",
+              priceSelectors: [
+                "[data-compare-price]",
+                ".price__compare",
+                ".product__price--compare",
+                ".product-single__price--compare",
+                "[data-product-compare-price]",
+                ".price__sale",
+                ".price-item price-item--sale"
+              ],
+              foundElements: {
+                dataComparePrice: cardEl.querySelector("[data-compare-price]"),
+                priceCompare: cardEl.querySelector(".price__compare"),
+                productPriceCompare: cardEl.querySelector(
+                  ".product__price--compare",
+                ),
+                productSinglePriceCompare: cardEl.querySelector(
+                  ".product-single__price--compare",
+                ),
+                dataProductComparePrice: cardEl.querySelector(
+                  "[data-product-compare-price]",
+                ),
+              },
+            },
+          );
+        }
+
         if (!product || !product.compareAtPrice) {
           console.log(
             `DO Label Collection: Label "${label.text}" - no compare price, not showing`,
+          );
+          console.log(
+            `DO Label Collection: Label "${label.text}" - product object:`,
+            product,
           );
           return false; // No compare price, don't show label
         }
@@ -487,6 +671,17 @@
 
         console.log(
           `DO Label Collection: Label "${label.text}" - price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
+        );
+        console.log(
+          `DO Label Collection: Label "${label.text}" - price comparison details:`,
+          {
+            comparePrice: comparePrice,
+            fromPrice: fromPrice,
+            toPrice: toPrice,
+            isInRange: comparePrice >= fromPrice && comparePrice <= toPrice,
+            rawComparePrice: product.compareAtPrice,
+            rawRuleConfig: label.ruleConfig,
+          },
         );
 
         // Check if product price is within the specified range
@@ -555,6 +750,17 @@
 
         console.log(
           `DO Label Collection: Label "${label.text}" - price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
+        );
+        console.log(
+          `DO Label Collection: Label "${label.text}" - price comparison details:`,
+          {
+            comparePrice: comparePrice,
+            fromPrice: fromPrice,
+            toPrice: toPrice,
+            isInRange: comparePrice >= fromPrice && comparePrice <= toPrice,
+            rawComparePrice: product.compareAtPrice,
+            rawRuleConfig: label.ruleConfig,
+          },
         );
 
         // Check if product price is within the specified range
@@ -665,6 +871,26 @@
       labels,
     );
 
+    // Debug: Log each label structure in detail
+    if (labels && Array.isArray(labels)) {
+      console.log(
+        `DO Label Collection: Total labels to process: ${labels.length}`,
+      );
+      labels.forEach((label, index) => {
+        console.log(`DO Label Collection: Label ${index + 1} details:`, {
+          id: label.id,
+          text: label.text,
+          condition: label.condition,
+          ruleType: label.ruleType,
+          ruleConfig: label.ruleConfig,
+          active: label.active,
+          productIds: label.productIds,
+          background: label.background,
+          position: label.position,
+        });
+      });
+    }
+
     const cards = getCollectionProductCards();
     console.log(`DO Label Collection: Processing ${cards.length} cards`);
 
@@ -679,9 +905,21 @@
         productId,
       );
 
+      // Debug: Log card HTML structure for troubleshooting
+      console.log(
+        `DO Label Collection: Card ${index + 1} HTML structure:`,
+        card.outerHTML.substring(0, 500) + "...",
+      );
+
       if (!productId) {
         console.log(
           `DO Label Collection: Card ${index + 1} - No product ID found, skipping`,
+        );
+        console.log(
+          `DO Label Collection: Card ${index + 1} - Available attributes:`,
+          Array.from(card.attributes).map(
+            (attr) => `${attr.name}="${attr.value}"`,
+          ),
         );
         return;
       }
@@ -691,6 +929,20 @@
         `DO Label Collection: Card ${index + 1} media container:`,
         mediaContainer,
       );
+
+      // Debug: Log media container details
+      if (mediaContainer) {
+        console.log(
+          `DO Label Collection: Card ${index + 1} media container details:`,
+          {
+            tagName: mediaContainer.tagName,
+            className: mediaContainer.className,
+            id: mediaContainer.id,
+            position: getComputedStyle(mediaContainer).position,
+            hasImages: mediaContainer.querySelectorAll("img").length,
+          },
+        );
+      }
 
       if (!mediaContainer) {
         console.log(
@@ -812,12 +1064,73 @@
     );
     return [];
   }
+  // Debug helper function to analyze collection page structure
+  function debugCollectionPageStructure() {
+    console.log(
+      "=== DO Label Collection: Collection Page Structure Analysis ===",
+    );
+
+    // Check URL
+    console.log("URL Analysis:", {
+      href: window.location.href,
+      pathname: window.location.pathname,
+      isCollectionPage: window.location.pathname.includes("/collections/"),
+    });
+
+    // Check available product cards
+    const allCards = document.querySelectorAll(
+      ".card, .product-card, .grid__item, [data-product-id], [data-product-handle]",
+    );
+    console.log("Available Product Cards:", {
+      total: allCards.length,
+      cards: Array.from(allCards).map((card, index) => ({
+        index: index + 1,
+        tagName: card.tagName,
+        className: card.className,
+        id: card.id,
+        dataProductId: card.getAttribute("data-product-id"),
+        dataProductHandle: card.getAttribute("data-product-handle"),
+        hasProductLink: !!card.querySelector('a[href*="/products/"]'),
+        productLink: card.querySelector('a[href*="/products/"]')?.href,
+      })),
+    });
+
+    // Check price elements
+    const priceElements = document.querySelectorAll(
+      "[data-compare-price], .price__compare, .product__price--compare, .product-single__price--compare, [data-product-compare-price]",
+    );
+    console.log("Available Price Elements:", {
+      total: priceElements.length,
+      elements: Array.from(priceElements).map((el, index) => ({
+        index: index + 1,
+        tagName: el.tagName,
+        className: el.className,
+        textContent: el.textContent,
+        dataComparePrice: el.getAttribute("data-compare-price"),
+        dataProductComparePrice: el.getAttribute("data-product-compare-price"),
+      })),
+    });
+
+    // Check theme detection
+    console.log("Theme Detection:", {
+      hasShopify: typeof window.Shopify !== "undefined",
+      themeName:
+        document.documentElement.getAttribute("data-theme-name") || "Unknown",
+      bodyClasses: document.body.className,
+    });
+
+    console.log("=== End Collection Page Structure Analysis ===");
+  }
+
   // Main execution for collection pages
   function initCollectionLabels() {
     const onCollectionPage = isCollectionPage();
 
     console.log("DO Label Collection: initCollectionLabels called");
     console.log("DO Label Collection: onCollectionPage =", onCollectionPage);
+
+    // Run debug analysis
+    debugCollectionPageStructure();
 
     if (!onCollectionPage) {
       console.log("DO Label Collection: Not on collection page, exiting");

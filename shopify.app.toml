@@ -3,7 +3,7 @@
 client_id = "d090f486b6ac47969dca38d6140e1e96"
 name = "DO Product Label"
 handle = "do-product-label"
-application_url = "https://belkin-cope-susan-strap.trycloudflare.com"
+application_url = "https://page-fast-smile-printed.trycloudflare.com"
 embedded = true
 
 [webhooks]
@@ -22,7 +22,7 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://belkin-cope-susan-strap.trycloudflare.com/auth/callback", "https://belkin-cope-susan-strap.trycloudflare.com/auth/shopify/callback", "https://belkin-cope-susan-strap.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://page-fast-smile-printed.trycloudflare.com/auth/callback", "https://page-fast-smile-printed.trycloudflare.com/auth/shopify/callback", "https://page-fast-smile-printed.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
@@ -33,6 +33,6 @@ include_config_on_deploy = true
 dev_store_url = "staging-digitaloutlook.myshopify.com"
 
 [app_proxy]
-url = "https://belkin-cope-susan-strap.trycloudflare.com"
+url = "https://page-fast-smile-printed.trycloudflare.com"
 prefix = "apps"
 subpath = "doproductlabel"
