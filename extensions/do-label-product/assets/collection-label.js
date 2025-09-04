@@ -255,11 +255,11 @@
 
   // Fallback method to detect new arrivals when creation date is not available
   function checkNewArrivalFallback(label, cardEl = null) {
-    // console.log("DO Label Collection: checkNewArrivalFallback called");
+    console.log("DO Label Collection: checkNewArrivalFallback called");
 
     const searchElement = cardEl || document;
 
-    // Method 1: Look for "new" text indicators
+    // Method 1: Look for "new" text indicators in product-specific elements
     const newTextIndicators = [
       "new",
       "nouveau",
@@ -276,7 +276,12 @@
       const text = (element.textContent || "").toLowerCase().trim();
       if (
         text &&
-        newTextIndicators.some((indicator) => text.includes(indicator))
+        newTextIndicators.some((indicator) => text.includes(indicator)) &&
+        // Additional check: make sure it's not just a common word
+        text.length < 50 && // Avoid long text blocks
+        !text.includes("news") && // Avoid "news"
+        !text.includes("renew") && // Avoid "renew"
+        !text.includes("renewal") // Avoid "renewal"
       ) {
         console.log(
           `DO Label Collection: Found "new" indicator in text: "${text}"`,
@@ -307,26 +312,32 @@
       }
     }
 
-    // Method 3: Check if product has very recent price changes (indicating it might be new)
-    const priceElements = searchElement.querySelectorAll(
-      "[data-price], .price, .money",
-    );
-    for (const element of priceElements) {
-      const priceText = element.textContent || "";
-      if (
-        priceText.includes("$") ||
-        priceText.includes("€") ||
-        priceText.includes("£")
-      ) {
-        // If we can't determine creation date, assume it's not new
+    // Method 3: Check for very specific new arrival indicators
+    const specificNewSelectors = [
+      ".badge--new",
+      ".tag--new",
+      ".label--new",
+      ".product-badge--new",
+      ".product-tag--new",
+      "[data-badge='new']",
+      "[data-tag='new']",
+      "[data-label='new']",
+    ];
+
+    for (const selector of specificNewSelectors) {
+      const element = searchElement.querySelector(selector);
+      if (element) {
         console.log(
-          "DO Label Collection: No new arrival indicators found, assuming not new",
+          `DO Label Collection: Found specific new indicator with selector: "${selector}"`,
         );
-        return false;
+        return true;
       }
     }
 
-    console.log("DO Label Collection: No new arrival indicators found");
+    // If no indicators found, assume it's not new
+    console.log(
+      "DO Label Collection: No new arrival indicators found, assuming not new",
+    );
     return false;
   }
 
@@ -838,6 +849,25 @@
           label.ruleConfig,
         );
 
+        // Validate rule configuration
+        if (!label.ruleConfig.from && !label.ruleConfig.to) {
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - special price rule has no valid configuration`,
+          );
+          return false;
+        }
+
+        // Additional validation: ensure at least one price range is specified
+        const fromPriceValue = parseFloat(label.ruleConfig.from);
+        const toPriceValue = parseFloat(label.ruleConfig.to);
+
+        if (isNaN(fromPriceValue) && isNaN(toPriceValue)) {
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - both from and to prices are invalid`,
+          );
+          return false;
+        }
+
         const product = cardEl
           ? getProductFromCard(cardEl)
           : getCurrentProduct();
@@ -890,8 +920,94 @@
         }
 
         const comparePrice = parseFloat(product.compareAtPrice);
-        const fromPrice = parseFloat(label.ruleConfig.from) || 0;
-        const toPrice = parseFloat(label.ruleConfig.to) || 999999;
+
+        console.log(
+          `DO Label Collection: Label "${label.text}" - compare price validation:`,
+          {
+            rawComparePrice: product.compareAtPrice,
+            parsedComparePrice: comparePrice,
+            isNaN: isNaN(comparePrice),
+            isPositive: comparePrice > 0,
+            isValid: !isNaN(comparePrice) && comparePrice > 0,
+          },
+        );
+
+        // Validate compare price is a valid number
+        if (isNaN(comparePrice) || comparePrice <= 0) {
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - invalid compare price: ${product.compareAtPrice}`,
+          );
+          return false;
+        }
+
+        // Process price range with proper validation
+        let fromPrice, toPrice;
+
+        if (isNaN(fromPriceValue) && isNaN(toPriceValue)) {
+          // Both values are invalid - this should have been caught earlier
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - both from and to prices are invalid`,
+          );
+          return false;
+        } else if (isNaN(fromPriceValue)) {
+          // Only from price is invalid - require a valid to price
+          if (isNaN(toPriceValue) || toPriceValue <= 0) {
+            console.warn(
+              `DO Label Collection: Label "${label.text}" - from price invalid and to price is also invalid or <= 0`,
+            );
+            return false;
+          }
+          fromPrice = 0;
+          toPrice = toPriceValue;
+          console.log(
+            `DO Label Collection: Label "${label.text}" - from price invalid, using 0 as default. Range: 0 to ${toPrice}`,
+          );
+        } else if (isNaN(toPriceValue)) {
+          // Only to price is invalid - require a valid from price
+          if (isNaN(fromPriceValue) || fromPriceValue <= 0) {
+            console.warn(
+              `DO Label Collection: Label "${label.text}" - to price invalid and from price is also invalid or <= 0`,
+            );
+            return false;
+          }
+          fromPrice = fromPriceValue;
+          toPrice = 999999;
+          console.log(
+            `DO Label Collection: Label "${label.text}" - to price invalid, using 999999 as default. Range: ${fromPrice} to 999999`,
+          );
+        } else {
+          // Both values are valid
+          fromPrice = fromPriceValue;
+          toPrice = toPriceValue;
+          console.log(
+            `DO Label Collection: Label "${label.text}" - both prices valid. Range: ${fromPrice} to ${toPrice}`,
+          );
+        }
+
+        // Additional validation: ensure we have valid price range
+        if (isNaN(fromPrice) || isNaN(toPrice)) {
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - invalid price range after processing: from=${fromPrice}, to=${toPrice}`,
+          );
+          return false;
+        }
+
+        // Validate price range
+        if (fromPrice < 0 || toPrice < 0) {
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - invalid price range: from=${fromPrice}, to=${toPrice}`,
+          );
+          return false;
+        }
+
+        if (fromPrice > toPrice) {
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - from price (${fromPrice}) is greater than to price (${toPrice}), swapping values`,
+          );
+          const temp = fromPrice;
+          fromPrice = toPrice;
+          toPrice = temp;
+        }
 
         console.log(
           `DO Label Collection: Label "${label.text}" - price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
@@ -909,7 +1025,36 @@
         );
 
         // Check if product price is within the specified range
-        if (comparePrice < fromPrice || comparePrice > toPrice) {
+        const isInRange = comparePrice >= fromPrice && comparePrice <= toPrice;
+
+        // Additional edge case validation - warn if range is too broad
+        if (fromPrice === 0 && toPrice === 999999) {
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - WARNING: Very broad price range (0-999999), this may show on all products!`,
+          );
+        }
+
+        // Check if range is too broad (more than 1000x difference)
+        const rangeRatio = toPrice / fromPrice;
+        if (rangeRatio > 1000 && fromPrice > 0) {
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - WARNING: Very broad price range (${fromPrice}-${toPrice}), ratio: ${rangeRatio.toFixed(2)}x`,
+          );
+        }
+
+        console.log(
+          `DO Label Collection: Label "${label.text}" - price range check:`,
+          {
+            comparePrice: comparePrice,
+            fromPrice: fromPrice,
+            toPrice: toPrice,
+            isInRange: isInRange,
+            condition: `${comparePrice} >= ${fromPrice} && ${comparePrice} <= ${toPrice}`,
+            result: isInRange ? "SHOW LABEL" : "HIDE LABEL",
+          },
+        );
+
+        if (!isInRange) {
           console.log(
             `DO Label Collection: Label "${label.text}" - price outside range, not showing`,
           );
@@ -931,6 +1076,14 @@
           `DO Label Collection: Label "${label.text}" - ruleConfig:`,
           label.ruleConfig,
         );
+
+        // Validate rule configuration
+        if (!label.ruleConfig.days || isNaN(parseInt(label.ruleConfig.days))) {
+          console.warn(
+            `DO Label Collection: Label "${label.text}" - invalid new arrival rule configuration`,
+          );
+          return false;
+        }
 
         const product = cardEl
           ? getProductFromCard(cardEl)

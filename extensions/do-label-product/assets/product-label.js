@@ -232,7 +232,46 @@
   function checkNewArrivalFallback(label) {
     console.log("DO Label Product: checkNewArrivalFallback called");
 
-    // Method 1: Look for "new" text indicators
+    // Focus search on product-specific elements only
+    const productSelectors = [
+      ".product",
+      ".product-single",
+      ".product__info",
+      ".product__details",
+      ".product__content",
+      ".product__description",
+      ".product__title",
+      ".product__price",
+      ".product__meta",
+      "[data-product]",
+      "[data-product-id]",
+      ".product-form",
+      ".product-form__buttons",
+    ];
+
+    let searchElements = [];
+
+    // Try to find product-specific containers first
+    for (const selector of productSelectors) {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length > 0) {
+        searchElements = Array.from(elements);
+        console.log(
+          `DO Label Product: Found product containers with selector: ${selector}`,
+        );
+        break;
+      }
+    }
+
+    // If no product containers found, search more broadly but be more restrictive
+    if (searchElements.length === 0) {
+      console.log(
+        "DO Label Product: No product containers found, using broader search",
+      );
+      searchElements = [document.body];
+    }
+
+    // Method 1: Look for "new" text indicators in product-specific elements
     const newTextIndicators = [
       "new",
       "nouveau",
@@ -244,21 +283,28 @@
       "hàng mới",
     ];
 
-    const allElements = document.querySelectorAll("*");
-    for (const element of allElements) {
-      const text = (element.textContent || "").toLowerCase().trim();
-      if (
-        text &&
-        newTextIndicators.some((indicator) => text.includes(indicator))
-      ) {
-        console.log(
-          `DO Label Product: Found "new" indicator in text: "${text}"`,
-        );
-        return true;
+    for (const container of searchElements) {
+      const elements = container.querySelectorAll("*");
+      for (const element of elements) {
+        const text = (element.textContent || "").toLowerCase().trim();
+        if (
+          text &&
+          newTextIndicators.some((indicator) => text.includes(indicator)) &&
+          // Additional check: make sure it's not just a common word
+          text.length < 50 && // Avoid long text blocks
+          !text.includes("news") && // Avoid "news"
+          !text.includes("renew") && // Avoid "renew"
+          !text.includes("renewal") // Avoid "renewal"
+        ) {
+          console.log(
+            `DO Label Product: Found "new" indicator in text: "${text}"`,
+          );
+          return true;
+        }
       }
     }
 
-    // Method 2: Look for "new" class names or attributes
+    // Method 2: Look for "new" class names or attributes in product-specific elements
     const newClassSelectors = [
       ".new",
       ".new-product",
@@ -270,36 +316,46 @@
       "[data-new-arrival]",
     ];
 
-    for (const selector of newClassSelectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        console.log(
-          `DO Label Product: Found "new" indicator with selector: "${selector}"`,
-        );
-        return true;
+    for (const container of searchElements) {
+      for (const selector of newClassSelectors) {
+        const element = container.querySelector(selector);
+        if (element) {
+          console.log(
+            `DO Label Product: Found "new" indicator with selector: "${selector}"`,
+          );
+          return true;
+        }
       }
     }
 
-    // Method 3: Check if product has very recent price changes (indicating it might be new)
-    const priceElements = document.querySelectorAll(
-      "[data-price], .price, .money",
+    // Method 3: Check for very specific new arrival indicators
+    const specificNewSelectors = [
+      ".badge--new",
+      ".tag--new",
+      ".label--new",
+      ".product-badge--new",
+      ".product-tag--new",
+      "[data-badge='new']",
+      "[data-tag='new']",
+      "[data-label='new']",
+    ];
+
+    for (const container of searchElements) {
+      for (const selector of specificNewSelectors) {
+        const element = container.querySelector(selector);
+        if (element) {
+          console.log(
+            `DO Label Product: Found specific new indicator with selector: "${selector}"`,
+          );
+          return true;
+        }
+      }
+    }
+
+    // If no indicators found, assume it's not new
+    console.log(
+      "DO Label Product: No new arrival indicators found, assuming not new",
     );
-    for (const element of priceElements) {
-      const priceText = element.textContent || "";
-      if (
-        priceText.includes("$") ||
-        priceText.includes("€") ||
-        priceText.includes("£")
-      ) {
-        // If we can't determine creation date, assume it's not new
-        console.log(
-          "DO Label Product: No new arrival indicators found, assuming not new",
-        );
-        return false;
-      }
-    }
-
-    console.log("DO Label Product: No new arrival indicators found");
     return false;
   }
 
@@ -307,87 +363,132 @@
   function detectComparePriceFromTheme() {
     console.log("DO Label Product: detectComparePriceFromTheme called");
 
-    // Method 1: Look for price elements with strikethrough or line-through styles
-    const strikethroughElements = document.querySelectorAll("*");
-    for (const el of strikethroughElements) {
-      const style = getComputedStyle(el);
-      if (
-        style.textDecoration.includes("line-through") ||
-        style.textDecoration.includes("strikethrough") ||
-        el.style.textDecoration.includes("line-through") ||
-        el.style.textDecoration.includes("strikethrough")
-      ) {
-        const text = (el.textContent || "").trim();
-        if (text && /\d+/.test(text)) {
-          console.log("DO Label Product: Found strikethrough price element:", {
-            element: el,
-            text: text,
-            className: el.className,
-            tagName: el.tagName,
-          });
-          return { element: el, text: text };
-        }
-      }
-    }
+    // Focus search on product-specific containers first
+    const productSelectors = [
+      ".product",
+      ".product-single",
+      ".product__info",
+      ".product__details",
+      ".product__content",
+      ".product__price",
+      ".product__meta",
+      "[data-product]",
+      "[data-product-id]",
+      ".product-form",
+    ];
 
-    // Method 2: Look for elements with "was" or "compare" in text content
-    const textElements = document.querySelectorAll("*");
-    for (const el of textElements) {
-      const text = (el.textContent || "").toLowerCase();
-      if (
-        (text.includes("was") ||
-          text.includes("compare") ||
-          text.includes("original")) &&
-        /\d+/.test(text) &&
-        el.children.length === 0
-      ) {
+    let searchElements = [];
+
+    // Try to find product-specific containers first
+    for (const selector of productSelectors) {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length > 0) {
+        searchElements = Array.from(elements);
         console.log(
-          "DO Label Product: Found price element with 'was/compare' text:",
-          {
-            element: el,
-            text: el.textContent,
-            className: el.className,
-            tagName: el.tagName,
-          },
+          `DO Label Product: Found product containers with selector: ${selector}`,
         );
-        return { element: el, text: el.textContent };
+        break;
       }
     }
 
-    // Method 3: Look for price elements that are visually different (smaller, grayed out)
-    const priceElements = document.querySelectorAll("*");
-    for (const el of priceElements) {
-      const text = (el.textContent || "").trim();
-      if (text && /\d+/.test(text) && el.children.length === 0) {
+    // If no product containers found, search more broadly but be more restrictive
+    if (searchElements.length === 0) {
+      console.log(
+        "DO Label Product: No product containers found, using broader search",
+      );
+      searchElements = [document.body];
+    }
+
+    // Method 1: Look for price elements with strikethrough or line-through styles
+    for (const container of searchElements) {
+      const strikethroughElements = container.querySelectorAll("*");
+      for (const el of strikethroughElements) {
         const style = getComputedStyle(el);
-        const fontSize = parseFloat(style.fontSize);
-        const color = style.color;
-
-        // Check if it's smaller than parent or has a grayed out color
-        const parent = el.parentElement;
-        if (parent) {
-          const parentStyle = getComputedStyle(parent);
-          const parentFontSize = parseFloat(parentStyle.fontSize);
-
-          if (
-            fontSize < parentFontSize ||
-            color.includes("128") || // Gray colors often have 128 in RGB
-            color.includes("gray") ||
-            color.includes("grey")
-          ) {
+        if (
+          style.textDecoration.includes("line-through") ||
+          style.textDecoration.includes("strikethrough") ||
+          el.style.textDecoration.includes("line-through") ||
+          el.style.textDecoration.includes("strikethrough")
+        ) {
+          const text = (el.textContent || "").trim();
+          if (text && /\d+/.test(text)) {
             console.log(
-              "DO Label Product: Found smaller/grayed price element:",
+              "DO Label Product: Found strikethrough price element:",
               {
                 element: el,
                 text: text,
                 className: el.className,
                 tagName: el.tagName,
-                fontSize: fontSize,
-                parentFontSize: parentFontSize,
-                color: color,
               },
             );
             return { element: el, text: text };
+          }
+        }
+      }
+    }
+
+    // Method 2: Look for elements with "was" or "compare" in text content
+    for (const container of searchElements) {
+      const textElements = container.querySelectorAll("*");
+      for (const el of textElements) {
+        const text = (el.textContent || "").toLowerCase();
+        if (
+          (text.includes("was") ||
+            text.includes("compare") ||
+            text.includes("original")) &&
+          /\d+/.test(text) &&
+          el.children.length === 0
+        ) {
+          console.log(
+            "DO Label Product: Found price element with 'was/compare' text:",
+            {
+              element: el,
+              text: el.textContent,
+              className: el.className,
+              tagName: el.tagName,
+            },
+          );
+          return { element: el, text: el.textContent };
+        }
+      }
+    }
+
+    // Method 3: Look for price elements that are visually different (smaller, grayed out)
+    for (const container of searchElements) {
+      const priceElements = container.querySelectorAll("*");
+      for (const el of priceElements) {
+        const text = (el.textContent || "").trim();
+        if (text && /\d+/.test(text) && el.children.length === 0) {
+          const style = getComputedStyle(el);
+          const fontSize = parseFloat(style.fontSize);
+          const color = style.color;
+
+          // Check if it's smaller than parent or has a grayed out color
+          const parent = el.parentElement;
+          if (parent) {
+            const parentStyle = getComputedStyle(parent);
+            const parentFontSize = parseFloat(parentStyle.fontSize);
+
+            if (
+              fontSize < parentFontSize ||
+              color.includes("128") || // Gray colors often have 128 in RGB
+              color.includes("gray") ||
+              color.includes("grey")
+            ) {
+              console.log(
+                "DO Label Product: Found smaller/grayed price element:",
+                {
+                  element: el,
+                  text: text,
+                  className: el.className,
+                  tagName: el.tagName,
+                  fontSize: fontSize,
+                  parentFontSize: parentFontSize,
+                  color: color,
+                },
+              );
+              return { element: el, text: text };
+            }
           }
         }
       }
@@ -911,10 +1012,39 @@
           label.ruleConfig,
         );
 
-        // Validate rule configuration
-        if (!label.ruleConfig.from && !label.ruleConfig.to) {
+        // Validate rule configuration - ensure we have at least one valid price
+        const fromPriceValue = parseFloat(label.ruleConfig.from);
+        const toPriceValue = parseFloat(label.ruleConfig.to);
+
+        console.log(
+          `DO Label Product: Label "${label.text}" - raw price values:`,
+          {
+            from: label.ruleConfig.from,
+            to: label.ruleConfig.to,
+            fromParsed: fromPriceValue,
+            toParsed: toPriceValue,
+            fromIsNaN: isNaN(fromPriceValue),
+            toIsNaN: isNaN(toPriceValue),
+          },
+        );
+
+        // Check if we have at least one valid price value
+        if (isNaN(fromPriceValue) && isNaN(toPriceValue)) {
           console.warn(
-            `DO Label Product: Label "${label.text}" - special price rule has no valid configuration`,
+            `DO Label Product: Label "${label.text}" - both from and to prices are invalid, not showing`,
+          );
+          return false;
+        }
+
+        // Additional check: if both values exist but are invalid, don't show
+        if (
+          label.ruleConfig.from &&
+          label.ruleConfig.to &&
+          isNaN(fromPriceValue) &&
+          isNaN(toPriceValue)
+        ) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - both provided prices are invalid, not showing`,
           );
           return false;
         }
@@ -929,10 +1059,39 @@
           console.log(
             `DO Label Product: Label "${label.text}" - no compare price, not showing`,
           );
+          console.log(
+            `DO Label Product: Label "${label.text}" - product object:`,
+            product,
+          );
           return false; // No compare price, don't show label
         }
 
+        // Additional validation: check if compareAtPrice is a valid number
+        const comparePriceRaw = product.compareAtPrice;
+        if (
+          typeof comparePriceRaw !== "string" &&
+          typeof comparePriceRaw !== "number"
+        ) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - compareAtPrice is not a string or number:`,
+            comparePriceRaw,
+            typeof comparePriceRaw,
+          );
+          return false;
+        }
+
         const comparePrice = parseFloat(product.compareAtPrice);
+
+        console.log(
+          `DO Label Product: Label "${label.text}" - compare price validation:`,
+          {
+            rawComparePrice: product.compareAtPrice,
+            parsedComparePrice: comparePrice,
+            isNaN: isNaN(comparePrice),
+            isPositive: comparePrice > 0,
+            isValid: !isNaN(comparePrice) && comparePrice > 0,
+          },
+        );
 
         // Validate compare price is a valid number
         if (isNaN(comparePrice) || comparePrice <= 0) {
@@ -942,8 +1101,57 @@
           return false;
         }
 
-        let fromPrice = parseFloat(label.ruleConfig.from) || 0;
-        let toPrice = parseFloat(label.ruleConfig.to) || 999999;
+        // Process price range with proper validation
+        let fromPrice, toPrice;
+
+        if (isNaN(fromPriceValue) && isNaN(toPriceValue)) {
+          // Both values are invalid - this should have been caught earlier
+          console.warn(
+            `DO Label Product: Label "${label.text}" - both from and to prices are invalid`,
+          );
+          return false;
+        } else if (isNaN(fromPriceValue)) {
+          // Only from price is invalid - require a valid to price
+          if (isNaN(toPriceValue) || toPriceValue <= 0) {
+            console.warn(
+              `DO Label Product: Label "${label.text}" - from price invalid and to price is also invalid or <= 0`,
+            );
+            return false;
+          }
+          fromPrice = 0;
+          toPrice = toPriceValue;
+          console.log(
+            `DO Label Product: Label "${label.text}" - from price invalid, using 0 as default. Range: 0 to ${toPrice}`,
+          );
+        } else if (isNaN(toPriceValue)) {
+          // Only to price is invalid - require a valid from price
+          if (isNaN(fromPriceValue) || fromPriceValue <= 0) {
+            console.warn(
+              `DO Label Product: Label "${label.text}" - to price invalid and from price is also invalid or <= 0`,
+            );
+            return false;
+          }
+          fromPrice = fromPriceValue;
+          toPrice = 999999;
+          console.log(
+            `DO Label Product: Label "${label.text}" - to price invalid, using 999999 as default. Range: ${fromPrice} to 999999`,
+          );
+        } else {
+          // Both values are valid
+          fromPrice = fromPriceValue;
+          toPrice = toPriceValue;
+          console.log(
+            `DO Label Product: Label "${label.text}" - both prices valid. Range: ${fromPrice} to ${toPrice}`,
+          );
+        }
+
+        // Additional validation: ensure we have valid price range
+        if (isNaN(fromPrice) || isNaN(toPrice)) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - invalid price range after processing: from=${fromPrice}, to=${toPrice}`,
+          );
+          return false;
+        }
 
         // Validate price range
         if (fromPrice < 0 || toPrice < 0) {
@@ -978,7 +1186,36 @@
         );
 
         // Check if product price is within the specified range
-        if (comparePrice < fromPrice || comparePrice > toPrice) {
+        const isInRange = comparePrice >= fromPrice && comparePrice <= toPrice;
+
+        // Additional edge case validation - warn if range is too broad
+        if (fromPrice === 0 && toPrice === 999999) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - WARNING: Very broad price range (0-999999), this may show on all products!`,
+          );
+        }
+
+        // Check if range is too broad (more than 1000x difference)
+        const rangeRatio = toPrice / fromPrice;
+        if (rangeRatio > 1000 && fromPrice > 0) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - WARNING: Very broad price range (${fromPrice}-${toPrice}), ratio: ${rangeRatio.toFixed(2)}x`,
+          );
+        }
+
+        console.log(
+          `DO Label Product: Label "${label.text}" - price range check:`,
+          {
+            comparePrice: comparePrice,
+            fromPrice: fromPrice,
+            toPrice: toPrice,
+            isInRange: isInRange,
+            condition: `${comparePrice} >= ${fromPrice} && ${comparePrice} <= ${toPrice}`,
+            result: isInRange ? "SHOW LABEL" : "HIDE LABEL",
+          },
+        );
+
+        if (!isInRange) {
           console.log(
             `DO Label Product: Label "${label.text}" - price outside range, not showing`,
           );
@@ -1001,6 +1238,14 @@
           label.ruleConfig,
         );
 
+        // Validate rule configuration
+        if (!label.ruleConfig.days || isNaN(parseInt(label.ruleConfig.days))) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - invalid new arrival rule configuration`,
+          );
+          return false;
+        }
+
         const product = getCurrentProduct();
         console.log(
           `DO Label Product: Label "${label.text}" - product data:`,
@@ -1019,7 +1264,12 @@
             `DO Label Product: Label "${label.text}" - no creation date found, using fallback method`,
           );
           // Fallback: Check if product has "new" indicators in DOM
-          return checkNewArrivalFallback(label);
+          // But be more conservative - only show if we find strong indicators
+          const fallbackResult = checkNewArrivalFallback(label);
+          console.log(
+            `DO Label Product: Label "${label.text}" - fallback result: ${fallbackResult}`,
+          );
+          return fallbackResult;
         }
 
         const daysSinceCreation = getDaysSinceCreation(productCreatedAt);
