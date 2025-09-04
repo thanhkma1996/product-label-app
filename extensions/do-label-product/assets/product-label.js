@@ -4,7 +4,7 @@
   // Configuration - Multiple endpoints for fallback
   const API_ENDPOINTS = [
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
-    "https://page-fast-smile-printed.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
+    "https://hungarian-laos-tourist-proposals.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
 
   const LABEL_STYLES = {
@@ -82,6 +82,99 @@
     return null;
   }
 
+  // Fallback method to detect compare prices from theme structures
+  function detectComparePriceFromTheme() {
+    console.log("DO Label Product: detectComparePriceFromTheme called");
+
+    // Method 1: Look for price elements with strikethrough or line-through styles
+    const strikethroughElements = document.querySelectorAll("*");
+    for (const el of strikethroughElements) {
+      const style = getComputedStyle(el);
+      if (
+        style.textDecoration.includes("line-through") ||
+        style.textDecoration.includes("strikethrough") ||
+        el.style.textDecoration.includes("line-through") ||
+        el.style.textDecoration.includes("strikethrough")
+      ) {
+        const text = (el.textContent || "").trim();
+        if (text && /\d+/.test(text)) {
+          console.log("DO Label Product: Found strikethrough price element:", {
+            element: el,
+            text: text,
+            className: el.className,
+            tagName: el.tagName,
+          });
+          return { element: el, text: text };
+        }
+      }
+    }
+
+    // Method 2: Look for elements with "was" or "compare" in text content
+    const textElements = document.querySelectorAll("*");
+    for (const el of textElements) {
+      const text = (el.textContent || "").toLowerCase();
+      if (
+        (text.includes("was") ||
+          text.includes("compare") ||
+          text.includes("original")) &&
+        /\d+/.test(text) &&
+        el.children.length === 0
+      ) {
+        console.log(
+          "DO Label Product: Found price element with 'was/compare' text:",
+          {
+            element: el,
+            text: el.textContent,
+            className: el.className,
+            tagName: el.tagName,
+          },
+        );
+        return { element: el, text: el.textContent };
+      }
+    }
+
+    // Method 3: Look for price elements that are visually different (smaller, grayed out)
+    const priceElements = document.querySelectorAll("*");
+    for (const el of priceElements) {
+      const text = (el.textContent || "").trim();
+      if (text && /\d+/.test(text) && el.children.length === 0) {
+        const style = getComputedStyle(el);
+        const fontSize = parseFloat(style.fontSize);
+        const color = style.color;
+
+        // Check if it's smaller than parent or has a grayed out color
+        const parent = el.parentElement;
+        if (parent) {
+          const parentStyle = getComputedStyle(parent);
+          const parentFontSize = parseFloat(parentStyle.fontSize);
+
+          if (
+            fontSize < parentFontSize ||
+            color.includes("128") || // Gray colors often have 128 in RGB
+            color.includes("gray") ||
+            color.includes("grey")
+          ) {
+            console.log(
+              "DO Label Product: Found smaller/grayed price element:",
+              {
+                element: el,
+                text: text,
+                className: el.className,
+                tagName: el.tagName,
+                fontSize: fontSize,
+                parentFontSize: parentFontSize,
+                color: color,
+              },
+            );
+            return { element: el, text: text };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
   function getCurrentProduct() {
     // Try to get product information from various sources
     const product = {};
@@ -95,63 +188,241 @@
       product.id,
     );
 
-    // Get compare at price (original price)
-    const compareAtPriceElement =
-      document.querySelector("[data-compare-price]") ||
-      document.querySelector(".price__compare") ||
-      document.querySelector(".product__price--compare") ||
-      document.querySelector(".product-single__price--compare") ||
-      document.querySelector("[data-product-compare-price]");
+    // Enhanced compare at price detection with more comprehensive selectors
+    const comparePriceSelectors = [
+      // Data attributes
+      "[data-compare-price]",
+      "[data-product-compare-price]",
+      "[data-original-price]",
+      "[data-was-price]",
+      "[data-old-price]",
+      "[data-price-compare]",
+      // Class-based selectors
+      ".price__compare",
+      ".product__price--compare",
+      ".product-single__price--compare",
+      ".price-compare",
+      ".compare-price",
+      ".original-price",
+      ".was-price",
+      ".old-price",
+      ".price-original",
+      ".price-was",
+      ".price-old",
+      ".product-price-compare",
+      ".product-price-original",
+      ".product-price-was",
+      ".product-price-old",
+      // Theme-specific selectors
+      ".money-compare",
+      ".money-original",
+      ".money-was",
+      ".money-old",
+      ".product-money-compare",
+      ".product-money-original",
+      ".product-money-was",
+      ".product-money-old",
+      // Generic selectors
+      ".price .compare",
+      ".price .original",
+      ".price .was",
+      ".price .old",
+      ".product-price .compare",
+      ".product-price .original",
+      ".product-price .was",
+      ".product-price .old",
+      // Shopify Liquid variables (if available in DOM)
+      "[data-product-compare-at-price]",
+      "[data-variant-compare-at-price]",
+      // Additional fallback selectors
+      ".price-item--compare",
+      ".price-item--original",
+      ".price-item--was",
+      ".price-item--old",
+      ".product__price-item--compare",
+      ".product__price-item--original",
+      ".product__price-item--was",
+      ".product__price-item--old",
+    ];
+
+    let compareAtPriceElement = null;
+    let selectedSelector = null;
+
+    // Try each selector and log which one is found
+    console.log("DO Label Product: Checking all compare price selectors:");
+    for (const selector of comparePriceSelectors) {
+      const element = document.querySelector(selector);
+      if (element) {
+        console.log(
+          `DO Label Product: Found compare price element with selector "${selector}":`,
+          {
+            element: element,
+            tagName: element.tagName,
+            className: element.className,
+            textContent: element.textContent,
+            innerText: element.innerText,
+            dataComparePrice: element.getAttribute("data-compare-price"),
+            dataProductComparePrice: element.getAttribute(
+              "data-product-compare-price",
+            ),
+            dataOriginalPrice: element.getAttribute("data-original-price"),
+            dataWasPrice: element.getAttribute("data-was-price"),
+            dataOldPrice: element.getAttribute("data-old-price"),
+          },
+        );
+        if (!compareAtPriceElement) {
+          compareAtPriceElement = element;
+          selectedSelector = selector;
+        }
+      }
+    }
 
     console.log(
-      "DO Label Product: getCurrentProduct - compareAtPriceElement found:",
+      `DO Label Product: getCurrentProduct - compareAtPriceElement found with selector "${selectedSelector}":`,
       compareAtPriceElement,
     );
 
     if (compareAtPriceElement) {
-      const comparePriceText =
-        compareAtPriceElement.textContent || compareAtPriceElement.innerText;
+      // Try multiple methods to get the price text
+      let comparePriceText =
+        compareAtPriceElement.textContent ||
+        compareAtPriceElement.innerText ||
+        compareAtPriceElement.getAttribute("data-compare-price") ||
+        compareAtPriceElement.getAttribute("data-product-compare-price") ||
+        compareAtPriceElement.getAttribute("data-original-price") ||
+        compareAtPriceElement.getAttribute("data-was-price") ||
+        compareAtPriceElement.getAttribute("data-old-price") ||
+        "";
+
       console.log(
         "DO Label Product: getCurrentProduct - comparePriceText:",
         comparePriceText,
       );
 
-      if (comparePriceText) {
-        // Extract price from text (remove currency symbols and extra text)
-        const priceMatch = comparePriceText.match(/[\d,]+\.?\d*/);
+      if (comparePriceText && comparePriceText.trim()) {
+        // Enhanced price extraction with better regex patterns
+        const pricePatterns = [
+          // Standard price patterns
+          /[\d,]+\.?\d*/g,
+          // Currency-specific patterns
+          /\$[\d,]+\.?\d*/g,
+          /€[\d,]+\.?\d*/g,
+          /£[\d,]+\.?\d*/g,
+          /¥[\d,]+\.?\d*/g,
+          // Decimal patterns
+          /[\d,]+\.\d{2}/g,
+          /[\d,]+\.\d{1}/g,
+          // Integer patterns
+          /[\d,]+/g,
+        ];
+
+        let extractedPrice = null;
+        for (const pattern of pricePatterns) {
+          const matches = comparePriceText.match(pattern);
+          if (matches && matches.length > 0) {
+            // Get the first match and clean it
+            let price = matches[0];
+            // Remove currency symbols and commas
+            price = price.replace(/[$€£¥,]/g, "");
+            // Validate it's a number
+            if (!isNaN(price) && parseFloat(price) > 0) {
+              extractedPrice = price;
+              break;
+            }
+          }
+        }
+
         console.log(
-          "DO Label Product: getCurrentProduct - priceMatch:",
-          priceMatch,
+          "DO Label Product: getCurrentProduct - extracted price:",
+          extractedPrice,
         );
 
-        if (priceMatch) {
-          product.compareAtPrice = priceMatch[0].replace(/,/g, "");
+        if (extractedPrice) {
+          product.compareAtPrice = extractedPrice;
           console.log(
-            "DO Label Product: getCurrentProduct - extracted price:",
+            "DO Label Product: getCurrentProduct - final compare price:",
             product.compareAtPrice,
+          );
+        } else {
+          console.log(
+            "DO Label Product: getCurrentProduct - could not extract valid price from text:",
+            comparePriceText,
           );
         }
       }
     } else {
       console.log(
-        "DO Label Product: getCurrentProduct - no compare price element found",
+        "DO Label Product: getCurrentProduct - no compare price element found with standard selectors",
       );
+
+      // Try fallback method to detect compare prices from theme structures
       console.log(
-        "DO Label Product: getCurrentProduct - available price elements:",
-        {
-          dataComparePrice: document.querySelector("[data-compare-price]"),
-          priceCompare: document.querySelector(".price__compare"),
-          productPriceCompare: document.querySelector(
-            ".product__price--compare",
-          ),
-          productSinglePriceCompare: document.querySelector(
-            ".product-single__price--compare",
-          ),
-          dataProductComparePrice: document.querySelector(
-            "[data-product-compare-price]",
-          ),
-        },
+        "DO Label Product: Trying fallback price detection methods...",
       );
+      const fallbackResult = detectComparePriceFromTheme();
+
+      if (fallbackResult) {
+        console.log(
+          "DO Label Product: Fallback method found compare price element:",
+          fallbackResult,
+        );
+
+        const comparePriceText = fallbackResult.text;
+        if (comparePriceText && comparePriceText.trim()) {
+          // Use the same enhanced price extraction logic
+          const pricePatterns = [
+            /[\d,]+\.?\d*/g,
+            /\$[\d,]+\.?\d*/g,
+            /€[\d,]+\.?\d*/g,
+            /£[\d,]+\.?\d*/g,
+            /¥[\d,]+\.?\d*/g,
+            /[\d,]+\.\d{2}/g,
+            /[\d,]+\.\d{1}/g,
+            /[\d,]+/g,
+          ];
+
+          let extractedPrice = null;
+          for (const pattern of pricePatterns) {
+            const matches = comparePriceText.match(pattern);
+            if (matches && matches.length > 0) {
+              let price = matches[0];
+              price = price.replace(/[$€£¥,]/g, "");
+              if (!isNaN(price) && parseFloat(price) > 0) {
+                extractedPrice = price;
+                break;
+              }
+            }
+          }
+
+          if (extractedPrice) {
+            product.compareAtPrice = extractedPrice;
+            console.log(
+              "DO Label Product: getCurrentProduct - fallback extracted price:",
+              product.compareAtPrice,
+            );
+          }
+        }
+      } else {
+        console.log(
+          "DO Label Product: getCurrentProduct - fallback methods also failed",
+        );
+        console.log(
+          "DO Label Product: getCurrentProduct - available price elements:",
+          {
+            dataComparePrice: document.querySelector("[data-compare-price]"),
+            priceCompare: document.querySelector(".price__compare"),
+            productPriceCompare: document.querySelector(
+              ".product__price--compare",
+            ),
+            productSinglePriceCompare: document.querySelector(
+              ".product-single__price--compare",
+            ),
+            dataProductComparePrice: document.querySelector(
+              "[data-product-compare-price]",
+            ),
+          },
+        );
+      }
     }
 
     console.log(
@@ -419,6 +690,14 @@
           label.ruleConfig,
         );
 
+        // Validate rule configuration
+        if (!label.ruleConfig.from && !label.ruleConfig.to) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - special price rule has no valid configuration`,
+          );
+          return false;
+        }
+
         const product = getCurrentProduct();
         console.log(
           `DO Label Product: Label "${label.text}" - product data:`,
@@ -433,8 +712,34 @@
         }
 
         const comparePrice = parseFloat(product.compareAtPrice);
-        const fromPrice = parseFloat(label.ruleConfig.from) || 0;
-        const toPrice = parseFloat(label.ruleConfig.to) || 999999;
+
+        // Validate compare price is a valid number
+        if (isNaN(comparePrice) || comparePrice <= 0) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - invalid compare price: ${product.compareAtPrice}`,
+          );
+          return false;
+        }
+
+        let fromPrice = parseFloat(label.ruleConfig.from) || 0;
+        let toPrice = parseFloat(label.ruleConfig.to) || 999999;
+
+        // Validate price range
+        if (fromPrice < 0 || toPrice < 0) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - invalid price range: from=${fromPrice}, to=${toPrice}`,
+          );
+          return false;
+        }
+
+        if (fromPrice > toPrice) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - from price (${fromPrice}) is greater than to price (${toPrice}), swapping values`,
+          );
+          const temp = fromPrice;
+          fromPrice = toPrice;
+          toPrice = temp;
+        }
 
         console.log(
           `DO Label Product: Label "${label.text}" - price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
@@ -485,20 +790,71 @@
     ) {
       // Special Price Rule for specific products
       if (label.ruleType === "special_price" && label.ruleConfig) {
+        console.log(
+          `DO Label Product: Label "${label.text}" - checking specific + special price rule`,
+        );
+
+        // Validate rule configuration
+        if (!label.ruleConfig.from && !label.ruleConfig.to) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - special price rule has no valid configuration`,
+          );
+          return false;
+        }
+
         const product = getCurrentProduct();
         if (!product || !product.compareAtPrice) {
+          console.log(
+            `DO Label Product: Label "${label.text}" - no compare price, not showing`,
+          );
           return false; // No compare price, don't show label
         }
 
         const comparePrice = parseFloat(product.compareAtPrice);
-        const fromPrice = parseFloat(label.ruleConfig.from) || 0;
-        const toPrice = parseFloat(label.ruleConfig.to) || 999999;
+
+        // Validate compare price is a valid number
+        if (isNaN(comparePrice) || comparePrice <= 0) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - invalid compare price: ${product.compareAtPrice}`,
+          );
+          return false;
+        }
+
+        let fromPrice = parseFloat(label.ruleConfig.from) || 0;
+        let toPrice = parseFloat(label.ruleConfig.to) || 999999;
+
+        // Validate price range
+        if (fromPrice < 0 || toPrice < 0) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - invalid price range: from=${fromPrice}, to=${toPrice}`,
+          );
+          return false;
+        }
+
+        if (fromPrice > toPrice) {
+          console.warn(
+            `DO Label Product: Label "${label.text}" - from price (${fromPrice}) is greater than to price (${toPrice}), swapping values`,
+          );
+          const temp = fromPrice;
+          fromPrice = toPrice;
+          toPrice = temp;
+        }
+
+        console.log(
+          `DO Label Product: Label "${label.text}" - specific + special price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
+        );
 
         // Check if product price is within the specified range
         if (comparePrice < fromPrice || comparePrice > toPrice) {
+          console.log(
+            `DO Label Product: Label "${label.text}" - price outside range, not showing`,
+          );
           return false; // Price outside range, don't show label
         }
 
+        console.log(
+          `DO Label Product: Label "${label.text}" - price in range, showing`,
+        );
         return true; // Price within range, show label
       }
 
@@ -752,19 +1108,115 @@
       hasProductId: !!productId,
     });
 
-    // Check available price elements
-    const priceElements = document.querySelectorAll(
-      "[data-compare-price], .price__compare, .product__price--compare, .product-single__price--compare, [data-product-compare-price]",
+    // Check available price elements with comprehensive selectors
+    const allPriceSelectors = [
+      "[data-compare-price]",
+      "[data-product-compare-price]",
+      "[data-original-price]",
+      "[data-was-price]",
+      "[data-old-price]",
+      "[data-price-compare]",
+      ".price__compare",
+      ".product__price--compare",
+      ".product-single__price--compare",
+      ".price-compare",
+      ".compare-price",
+      ".original-price",
+      ".was-price",
+      ".old-price",
+      ".price-original",
+      ".price-was",
+      ".price-old",
+      ".product-price-compare",
+      ".product-price-original",
+      ".product-price-was",
+      ".product-price-old",
+      ".money-compare",
+      ".money-original",
+      ".money-was",
+      ".money-old",
+      ".product-money-compare",
+      ".product-money-original",
+      ".product-money-was",
+      ".product-money-old",
+      ".price .compare",
+      ".price .original",
+      ".price .was",
+      ".price .old",
+      ".product-price .compare",
+      ".product-price .original",
+      ".product-price .was",
+      ".product-price .old",
+      "[data-product-compare-at-price]",
+      "[data-variant-compare-at-price]",
+      ".price-item--compare",
+      ".price-item--original",
+      ".price-item--was",
+      ".price-item--old",
+      ".product__price-item--compare",
+      ".product__price-item--original",
+      ".product__price-item--was",
+      ".product__price-item--old",
+    ];
+
+    const allPriceElements = document.querySelectorAll(
+      allPriceSelectors.join(", "),
     );
-    console.log("Available Price Elements:", {
-      total: priceElements.length,
-      elements: Array.from(priceElements).map((el, index) => ({
+    console.log("Available Price Elements (Comprehensive):", {
+      total: allPriceElements.length,
+      selectors: allPriceSelectors,
+      elements: Array.from(allPriceElements).map((el, index) => ({
+        index: index + 1,
+        tagName: el.tagName,
+        className: el.className,
+        id: el.id,
+        textContent: el.textContent,
+        innerText: el.innerText,
+        dataComparePrice: el.getAttribute("data-compare-price"),
+        dataProductComparePrice: el.getAttribute("data-product-compare-price"),
+        dataOriginalPrice: el.getAttribute("data-original-price"),
+        dataWasPrice: el.getAttribute("data-was-price"),
+        dataOldPrice: el.getAttribute("data-old-price"),
+        dataPriceCompare: el.getAttribute("data-price-compare"),
+        dataProductCompareAtPrice: el.getAttribute(
+          "data-product-compare-at-price",
+        ),
+        dataVariantCompareAtPrice: el.getAttribute(
+          "data-variant-compare-at-price",
+        ),
+        computedStyle: {
+          display: getComputedStyle(el).display,
+          visibility: getComputedStyle(el).visibility,
+          opacity: getComputedStyle(el).opacity,
+        },
+      })),
+    });
+
+    // Also check for any elements containing price-related text
+    const allElements = document.querySelectorAll("*");
+    const priceTextElements = Array.from(allElements).filter((el) => {
+      const text = (el.textContent || "").trim();
+      return (
+        text &&
+        (text.includes("$") ||
+          text.includes("€") ||
+          text.includes("£") ||
+          text.includes("¥") ||
+          /\d+\.\d{2}/.test(text) ||
+          /\d+,\d{2}/.test(text)) &&
+        el.children.length === 0
+      ); // Only leaf elements
+    });
+
+    console.log("Elements with Price-like Text:", {
+      total: priceTextElements.length,
+      elements: priceTextElements.slice(0, 20).map((el, index) => ({
         index: index + 1,
         tagName: el.tagName,
         className: el.className,
         textContent: el.textContent,
-        dataComparePrice: el.getAttribute("data-compare-price"),
-        dataProductComparePrice: el.getAttribute("data-product-compare-price"),
+        parentTagName: el.parentElement?.tagName,
+        parentClassName: el.parentElement?.className,
       })),
     });
 
