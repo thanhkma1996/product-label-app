@@ -105,6 +105,231 @@
     return product;
   }
 
+  // Get product creation date from various DOM sources
+  function getProductCreationDate(cardEl = null) {
+    console.log("DO Label Collection: getProductCreationDate called");
+
+    const searchElement = cardEl || document;
+
+    // Method 1: Look for data attributes with creation date
+    const creationDateSelectors = [
+      "[data-product-created-at]",
+      "[data-product-creation-date]",
+      "[data-product-date]",
+      "[data-created-at]",
+      "[data-creation-date]",
+      "[data-date-created]",
+      "[data-product-published-at]",
+      "[data-published-at]",
+    ];
+
+    for (const selector of creationDateSelectors) {
+      const element = searchElement.querySelector(selector);
+      if (element) {
+        const dateValue =
+          element.getAttribute(selector.replace(/[[\]]/g, "")) ||
+          element.textContent;
+        if (dateValue) {
+          console.log(
+            `DO Label Collection: Found creation date with selector "${selector}":`,
+            dateValue,
+          );
+          const parsedDate = parseDateString(dateValue);
+          if (parsedDate) {
+            return parsedDate;
+          }
+        }
+      }
+    }
+
+    // Method 2: Look for JSON-LD structured data
+    const jsonLdScripts = searchElement.querySelectorAll(
+      'script[type="application/ld+json"]',
+    );
+    for (const script of jsonLdScripts) {
+      try {
+        const data = JSON.parse(script.textContent);
+        if (data && data["@type"] === "Product") {
+          const dateCreated =
+            data.dateCreated || data.datePublished || data.createdAt;
+          if (dateCreated) {
+            console.log(
+              "DO Label Collection: Found creation date in JSON-LD:",
+              dateCreated,
+            );
+            const parsedDate = parseDateString(dateCreated);
+            if (parsedDate) {
+              return parsedDate;
+            }
+          }
+        }
+      } catch (error) {
+        // Continue to next script
+      }
+    }
+
+    // Method 3: Look for meta tags
+    const metaSelectors = [
+      'meta[property="product:created_time"]',
+      'meta[property="product:published_time"]',
+      'meta[name="product:created_time"]',
+      'meta[name="product:published_time"]',
+      'meta[property="article:published_time"]',
+    ];
+
+    for (const selector of metaSelectors) {
+      const meta = searchElement.querySelector(selector);
+      if (meta) {
+        const content = meta.getAttribute("content");
+        if (content) {
+          console.log(
+            `DO Label Collection: Found creation date in meta "${selector}":`,
+            content,
+          );
+          const parsedDate = parseDateString(content);
+          if (parsedDate) {
+            return parsedDate;
+          }
+        }
+      }
+    }
+
+    // Method 4: Look for Shopify-specific data
+    if (typeof window.Shopify !== "undefined" && window.Shopify.analytics) {
+      const productData = window.Shopify.analytics.meta?.product;
+      if (productData && productData.created_at) {
+        console.log(
+          "DO Label Collection: Found creation date in Shopify analytics:",
+          productData.created_at,
+        );
+        const parsedDate = parseDateString(productData.created_at);
+        if (parsedDate) {
+          return parsedDate;
+        }
+      }
+    }
+
+    console.log("DO Label Collection: No product creation date found");
+    return null;
+  }
+
+  // Parse various date string formats
+  function parseDateString(dateString) {
+    if (!dateString) return null;
+
+    // Try different date formats
+    const formats = [
+      // ISO 8601 formats
+      dateString,
+      // Unix timestamp (seconds)
+      new Date(parseInt(dateString) * 1000),
+      // Unix timestamp (milliseconds)
+      new Date(parseInt(dateString)),
+    ];
+
+    for (const format of formats) {
+      const date = new Date(format);
+      if (!isNaN(date.getTime()) && date.getFullYear() > 2000) {
+        console.log(
+          `DO Label Collection: Successfully parsed date: ${dateString} -> ${date.toISOString()}`,
+        );
+        return date;
+      }
+    }
+
+    console.log(`DO Label Collection: Failed to parse date: ${dateString}`);
+    return null;
+  }
+
+  // Calculate days since creation
+  function getDaysSinceCreation(createdDate) {
+    if (!createdDate) return Infinity;
+
+    const now = new Date();
+    const diffTime = Math.abs(now - createdDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    // console.log(`DO Label Collection: Days since creation: ${diffDays}`);
+    return diffDays;
+  }
+
+  // Fallback method to detect new arrivals when creation date is not available
+  function checkNewArrivalFallback(label, cardEl = null) {
+    // console.log("DO Label Collection: checkNewArrivalFallback called");
+
+    const searchElement = cardEl || document;
+
+    // Method 1: Look for "new" text indicators
+    const newTextIndicators = [
+      "new",
+      "nouveau",
+      "nuevo",
+      "neu",
+      "ny",
+      "mới",
+      "mới về",
+      "hàng mới",
+    ];
+
+    const allElements = searchElement.querySelectorAll("*");
+    for (const element of allElements) {
+      const text = (element.textContent || "").toLowerCase().trim();
+      if (
+        text &&
+        newTextIndicators.some((indicator) => text.includes(indicator))
+      ) {
+        console.log(
+          `DO Label Collection: Found "new" indicator in text: "${text}"`,
+        );
+        return true;
+      }
+    }
+
+    // Method 2: Look for "new" class names or attributes
+    const newClassSelectors = [
+      ".new",
+      ".new-product",
+      ".new-arrival",
+      ".latest",
+      ".recent",
+      "[data-new]",
+      "[data-new-product]",
+      "[data-new-arrival]",
+    ];
+
+    for (const selector of newClassSelectors) {
+      const element = searchElement.querySelector(selector);
+      if (element) {
+        console.log(
+          `DO Label Collection: Found "new" indicator with selector: "${selector}"`,
+        );
+        return true;
+      }
+    }
+
+    // Method 3: Check if product has very recent price changes (indicating it might be new)
+    const priceElements = searchElement.querySelectorAll(
+      "[data-price], .price, .money",
+    );
+    for (const element of priceElements) {
+      const priceText = element.textContent || "";
+      if (
+        priceText.includes("$") ||
+        priceText.includes("€") ||
+        priceText.includes("£")
+      ) {
+        // If we can't determine creation date, assume it's not new
+        console.log(
+          "DO Label Collection: No new arrival indicators found, assuming not new",
+        );
+        return false;
+      }
+    }
+
+    console.log("DO Label Collection: No new arrival indicators found");
+    return false;
+  }
+
   function getProductFromCard(cardEl) {
     // Try to get product information from a specific product card
     const product = {};
@@ -697,18 +922,57 @@
         return true; // Price within range, show label
       }
 
-      // New Arrival Rule - Note: This won't work perfectly on frontend
-      // because we can't get product creation date from frontend
+      // New Arrival Rule - Enhanced to detect recently created products
       if (label.ruleType === "new_arrival" && label.ruleConfig) {
         console.log(
-          `DO Label Collection: Label "${label.text}" - new arrival rule (limited support), showing`,
+          `DO Label Collection: Label "${label.text}" - checking new arrival rule`,
         );
-        console.warn(
-          "DO Label: New arrival rule is not fully supported on frontend due to missing product creation date",
+        console.log(
+          `DO Label Collection: Label "${label.text}" - ruleConfig:`,
+          label.ruleConfig,
         );
-        // For now, we'll show the label but this is not ideal
-        // In the future, we could implement a product sync mechanism
-        return true;
+
+        const product = cardEl
+          ? getProductFromCard(cardEl)
+          : getCurrentProduct();
+        console.log(
+          `DO Label Collection: Label "${label.text}" - product data:`,
+          product,
+        );
+
+        // Try to get product creation date
+        const productCreatedAt = getProductCreationDate(cardEl);
+        console.log(
+          `DO Label Collection: Label "${label.text}" - product creation date:`,
+          productCreatedAt,
+        );
+
+        if (!productCreatedAt) {
+          console.log(
+            `DO Label Collection: Label "${label.text}" - no creation date found, using fallback method`,
+          );
+          // Fallback: Check if product has "new" indicators in DOM
+          return checkNewArrivalFallback(label, cardEl);
+        }
+
+        const daysSinceCreation = getDaysSinceCreation(productCreatedAt);
+        const maxDays = parseInt(label.ruleConfig.days) || 30;
+
+        console.log(
+          `DO Label Collection: Label "${label.text}" - days since creation: ${daysSinceCreation}, max days: ${maxDays}`,
+        );
+
+        if (daysSinceCreation <= maxDays) {
+          console.log(
+            `DO Label Collection: Label "${label.text}" - product is new arrival, showing`,
+          );
+          return true;
+        } else {
+          console.log(
+            `DO Label Collection: Label "${label.text}" - product is not new arrival, not showing`,
+          );
+          return false;
+        }
       }
     }
 
