@@ -782,89 +782,14 @@
       }
     }
 
-    // CONDITION 4: Show only on specific products with rule-based conditions
-    if (
-      label.condition === "specific" &&
-      label.ruleType &&
-      label.ruleType !== "specific"
-    ) {
-      // Special Price Rule for specific products
-      if (label.ruleType === "special_price" && label.ruleConfig) {
-        console.log(
-          `DO Label Product: Label "${label.text}" - checking specific + special price rule`,
-        );
-
-        // Validate rule configuration
-        if (!label.ruleConfig.from && !label.ruleConfig.to) {
-          console.warn(
-            `DO Label Product: Label "${label.text}" - special price rule has no valid configuration`,
-          );
-          return false;
-        }
-
-        const product = getCurrentProduct();
-        if (!product || !product.compareAtPrice) {
-          console.log(
-            `DO Label Product: Label "${label.text}" - no compare price, not showing`,
-          );
-          return false; // No compare price, don't show label
-        }
-
-        const comparePrice = parseFloat(product.compareAtPrice);
-
-        // Validate compare price is a valid number
-        if (isNaN(comparePrice) || comparePrice <= 0) {
-          console.warn(
-            `DO Label Product: Label "${label.text}" - invalid compare price: ${product.compareAtPrice}`,
-          );
-          return false;
-        }
-
-        let fromPrice = parseFloat(label.ruleConfig.from) || 0;
-        let toPrice = parseFloat(label.ruleConfig.to) || 999999;
-
-        // Validate price range
-        if (fromPrice < 0 || toPrice < 0) {
-          console.warn(
-            `DO Label Product: Label "${label.text}" - invalid price range: from=${fromPrice}, to=${toPrice}`,
-          );
-          return false;
-        }
-
-        if (fromPrice > toPrice) {
-          console.warn(
-            `DO Label Product: Label "${label.text}" - from price (${fromPrice}) is greater than to price (${toPrice}), swapping values`,
-          );
-          const temp = fromPrice;
-          fromPrice = toPrice;
-          toPrice = temp;
-        }
-
-        console.log(
-          `DO Label Product: Label "${label.text}" - specific + special price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
-        );
-
-        // Check if product price is within the specified range
-        if (comparePrice < fromPrice || comparePrice > toPrice) {
-          console.log(
-            `DO Label Product: Label "${label.text}" - price outside range, not showing`,
-          );
-          return false; // Price outside range, don't show label
-        }
-
-        console.log(
-          `DO Label Product: Label "${label.text}" - price in range, showing`,
-        );
-        return true; // Price within range, show label
-      }
-
-      // New Arrival Rule for specific products - Same limitation as above
-      if (label.ruleType === "new_arrival" && label.ruleConfig) {
-        console.warn(
-          "DO Label: New arrival rule is not fully supported on frontend due to missing product creation date",
-        );
-        return true;
-      }
+    // CONDITION 4: Show only on specific products (no rule-based conditions allowed)
+    if (label.condition === "specific") {
+      // For specific products, only check if current product is in the selected list
+      // No additional rule-based conditions are allowed
+      console.log(
+        `DO Label Product: Label "${label.text}" - checking specific products only (no rule-based conditions)`,
+      );
+      return false; // This should not be reached as specific products are handled in CONDITION 2
     }
 
     return false; // Default: don't show label if no conditions match

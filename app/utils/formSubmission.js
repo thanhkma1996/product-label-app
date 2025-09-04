@@ -12,7 +12,6 @@ export function buildLabelFormData(formData, editLabelId = null) {
     labelBg,
     labelPosition,
     productCondition,
-    ruleType,
     selectedProductIds,
     specialPriceFrom,
     specialPriceTo,
@@ -45,22 +44,10 @@ export function buildLabelFormData(formData, editLabelId = null) {
     formDataObj.append("ruleConfig", JSON.stringify(ruleConfig));
   } else {
     formDataObj.append("condition", "specific");
-    formDataObj.append("ruleType", ruleType);
+    formDataObj.append("ruleType", "specific");
 
-    if (ruleType === "specific") {
-      selectedProductIds.forEach((id) => formDataObj.append("productIds", id));
-    } else if (ruleType === "special_price") {
-      const ruleConfig = {
-        from: parseFloat(specialPriceFrom) || 0,
-        to: parseFloat(specialPriceTo) || 999999,
-      };
-      formDataObj.append("ruleConfig", JSON.stringify(ruleConfig));
-    } else if (ruleType === "new_arrival") {
-      const ruleConfig = {
-        days: parseInt(newArrivalDays) || 30,
-      };
-      formDataObj.append("ruleConfig", JSON.stringify(ruleConfig));
-    }
+    // For specific products, only allow manual selection
+    selectedProductIds.forEach((id) => formDataObj.append("productIds", id));
   }
 
   if (editLabelId) {

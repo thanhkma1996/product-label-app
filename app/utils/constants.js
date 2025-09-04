@@ -25,8 +25,6 @@ export const PRODUCT_CONDITION_CHOICES = [
  */
 export const RULE_TYPE_CHOICES = [
   { label: "Manual selection", value: "specific" },
-  { label: "Special price rule", value: "special_price" },
-  { label: "New arrival rule", value: "new_arrival" },
 ];
 
 /**

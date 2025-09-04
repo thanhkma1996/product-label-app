@@ -166,8 +166,13 @@ async function handleEditLabel(formData, prisma) {
       position,
       condition,
       productIds: condition === "specific" ? productIds : [],
-      ruleType,
-      ruleConfig: ruleConfig ? JSON.parse(ruleConfig) : null,
+      ruleType: condition === "specific" ? "specific" : ruleType,
+      ruleConfig:
+        condition === "specific"
+          ? null
+          : ruleConfig
+            ? JSON.parse(ruleConfig)
+            : null,
     },
   });
 
@@ -269,8 +274,13 @@ async function handleCreateLabel(formData, prisma) {
       position,
       condition: condition,
       productIds: condition === "specific" ? productIds : undefined,
-      ruleType,
-      ruleConfig: ruleConfig ? JSON.parse(ruleConfig) : null,
+      ruleType: condition === "specific" ? "specific" : ruleType,
+      ruleConfig:
+        condition === "specific"
+          ? null
+          : ruleConfig
+            ? JSON.parse(ruleConfig)
+            : null,
       active: true, // Default to active
     },
   });

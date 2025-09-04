@@ -135,19 +135,7 @@ export function getCurrentRuleDescription(
   }
 
   if (productCondition[0] === "specific") {
-    if (ruleType === "specific") {
-      return `This label will be applied to ${selectedProductIds.length} manually selected products.`;
-    }
-
-    if (ruleType === "special_price") {
-      return `This label will be applied to products with special prices between $${specialPriceFrom || "0"} and $${specialPriceTo || "∞"}.`;
-    }
-
-    if (ruleType === "new_arrival") {
-      return `This label will be applied to products created in the last ${newArrivalDays} days.`;
-    }
-
-    return "Please select a rule type to configure this label.";
+    return `This label will be applied to ${selectedProductIds.length} manually selected products.`;
   }
 
   return "Please select a product condition to configure this label.";

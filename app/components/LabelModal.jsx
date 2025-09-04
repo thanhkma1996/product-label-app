@@ -14,7 +14,6 @@ import { hexFromRgb } from "../utils/colorUtils.js";
 import {
   LABEL_POSITIONS,
   PRODUCT_CONDITION_CHOICES,
-  RULE_TYPE_CHOICES,
   MODAL_TABS,
 } from "../utils/constants.js";
 import {
@@ -356,22 +355,8 @@ function ProductConditionsTab({
         onChange={setProductCondition}
       />
 
-      {/* Rule Type Selection */}
-      {productCondition[0] === "specific" && (
-        <div style={{ marginTop: 16 }}>
-          <ChoiceList
-            title="Product selection method"
-            choices={RULE_TYPE_CHOICES}
-            selected={[ruleType]}
-            onChange={(value) => setRuleType(value[0])}
-          />
-        </div>
-      )}
-
-      {/* Special Price Rule Configuration */}
-      {(productCondition[0] === "special_price" ||
-        (productCondition[0] === "specific" &&
-          ruleType === "special_price")) && (
+      {/* Special Price Rule Configuration - Only for rule-based condition */}
+      {productCondition[0] === "special_price" && (
         <SpecialPriceRuleConfig
           specialPriceFrom={specialPriceFrom}
           setSpecialPriceFrom={setSpecialPriceFrom}
@@ -381,9 +366,8 @@ function ProductConditionsTab({
         />
       )}
 
-      {/* New Arrival Rule Configuration */}
-      {(productCondition[0] === "new_arrival" ||
-        (productCondition[0] === "specific" && ruleType === "new_arrival")) && (
+      {/* New Arrival Rule Configuration - Only for rule-based condition */}
+      {productCondition[0] === "new_arrival" && (
         <NewArrivalRuleConfig
           newArrivalDays={newArrivalDays}
           setNewArrivalDays={setNewArrivalDays}
@@ -391,8 +375,8 @@ function ProductConditionsTab({
         />
       )}
 
-      {/* Manual Product Selection */}
-      {productCondition[0] === "specific" && ruleType === "specific" && (
+      {/* Manual Product Selection - Only for specific products */}
+      {productCondition[0] === "specific" && (
         <ManualProductSelection
           products={products}
           selectedProductIds={selectedProductIds}

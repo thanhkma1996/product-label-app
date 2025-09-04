@@ -87,12 +87,20 @@ export function setEditLabelState(
   setLabelPosition(label.position);
 
   // Set condition and rule type
-  if (label.ruleType === "special_price" || label.ruleType === "new_arrival") {
-    setProductCondition([label.ruleType]);
-    setRuleType(label.ruleType);
+  if (label.condition === "rule_based") {
+    if (label.ruleType === "special_price") {
+      setProductCondition(["special_price"]);
+      setRuleType("special_price");
+    } else if (label.ruleType === "new_arrival") {
+      setProductCondition(["new_arrival"]);
+      setRuleType("new_arrival");
+    } else {
+      setProductCondition(["all"]);
+      setRuleType("all");
+    }
   } else if (label.condition === "specific") {
     setProductCondition(["specific"]);
-    setRuleType(label.ruleType || "specific");
+    setRuleType("specific");
   } else {
     setProductCondition(["all"]);
     setRuleType("all");
@@ -103,11 +111,17 @@ export function setEditLabelState(
   );
 
   // Set rule configuration
-  if (label.ruleType === "special_price" && label.ruleConfig) {
-    setSpecialPriceFrom(label.ruleConfig.from?.toString() || "");
-    setSpecialPriceTo(label.ruleConfig.to?.toString() || "");
-  } else if (label.ruleType === "new_arrival" && label.ruleConfig) {
-    setNewArrivalDays(label.ruleConfig.days || 30);
+  if (label.condition === "rule_based") {
+    if (label.ruleType === "special_price" && label.ruleConfig) {
+      setSpecialPriceFrom(label.ruleConfig.from?.toString() || "");
+      setSpecialPriceTo(label.ruleConfig.to?.toString() || "");
+    } else if (label.ruleType === "new_arrival" && label.ruleConfig) {
+      setNewArrivalDays(label.ruleConfig.days || 30);
+    } else {
+      setSpecialPriceFrom("");
+      setSpecialPriceTo("");
+      setNewArrivalDays(30);
+    }
   } else {
     setSpecialPriceFrom("");
     setSpecialPriceTo("");

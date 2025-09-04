@@ -120,9 +120,8 @@
       cardEl.querySelector(".price__compare") ||
       cardEl.querySelector(".product__price--compare") ||
       cardEl.querySelector(".product-single__price--compare") ||
-      cardEl.querySelector(".price-item") || 
+      cardEl.querySelector(".price-item") ||
       cardEl.querySelector("[data-product-compare-price]");
-
 
     console.log(
       "DO Label Collection: getProductFromCard - compareAtPriceElement found:",
@@ -635,7 +634,7 @@
                 ".product-single__price--compare",
                 "[data-product-compare-price]",
                 ".price__sale",
-                ".price-item price-item--sale"
+                ".price-item price-item--sale",
               ],
               foundElements: {
                 dataComparePrice: cardEl.querySelector("[data-compare-price]"),
@@ -713,80 +712,14 @@
       }
     }
 
-    // CONDITION 4: Show only on specific products with rule-based conditions
-    if (
-      label.condition === "specific" &&
-      label.ruleType &&
-      label.ruleType !== "specific"
-    ) {
+    // CONDITION 4: Show only on specific products (no rule-based conditions allowed)
+    if (label.condition === "specific") {
+      // For specific products, only check if current product is in the selected list
+      // No additional rule-based conditions are allowed
       console.log(
-        `DO Label Collection: Label "${label.text}" - checking specific + rule-based condition`,
+        `DO Label Collection: Label "${label.text}" - checking specific products only (no rule-based conditions)`,
       );
-
-      // Special Price Rule for specific products
-      if (label.ruleType === "special_price" && label.ruleConfig) {
-        console.log(
-          `DO Label Collection: Label "${label.text}" - checking specific + special price rule`,
-        );
-
-        const product = cardEl
-          ? getProductFromCard(cardEl)
-          : getCurrentProduct();
-        console.log(
-          `DO Label Collection: Label "${label.text}" - product data:`,
-          product,
-        );
-
-        if (!product || !product.compareAtPrice) {
-          console.log(
-            `DO Label Collection: Label "${label.text}" - no compare price, not showing`,
-          );
-          return false; // No compare price, don't show label
-        }
-
-        const comparePrice = parseFloat(product.compareAtPrice);
-        const fromPrice = parseFloat(label.ruleConfig.from) || 0;
-        const toPrice = parseFloat(label.ruleConfig.to) || 999999;
-
-        console.log(
-          `DO Label Collection: Label "${label.text}" - price check: ${comparePrice} between ${fromPrice} and ${toPrice}`,
-        );
-        console.log(
-          `DO Label Collection: Label "${label.text}" - price comparison details:`,
-          {
-            comparePrice: comparePrice,
-            fromPrice: fromPrice,
-            toPrice: toPrice,
-            isInRange: comparePrice >= fromPrice && comparePrice <= toPrice,
-            rawComparePrice: product.compareAtPrice,
-            rawRuleConfig: label.ruleConfig,
-          },
-        );
-
-        // Check if product price is within the specified range
-        if (comparePrice < fromPrice || comparePrice > toPrice) {
-          console.log(
-            `DO Label Collection: Label "${label.text}" - price outside range, not showing`,
-          );
-          return false; // Price outside range, don't show label
-        }
-
-        console.log(
-          `DO Label Collection: Label "${label.text}" - price in range, showing`,
-        );
-        return true; // Price within range, show label
-      }
-
-      // New Arrival Rule for specific products - Same limitation as above
-      if (label.ruleType === "new_arrival" && label.ruleConfig) {
-        console.log(
-          `DO Label Collection: Label "${label.text}" - specific + new arrival rule (limited support), showing`,
-        );
-        console.warn(
-          "DO Label: New arrival rule is not fully supported on frontend due to missing product creation date",
-        );
-        return true;
-      }
+      return false; // This should not be reached as specific products are handled in CONDITION 2
     }
 
     console.log(
