@@ -118,3 +118,8 @@ scopes (tương đương SCOPES)
 
 + db.server.js = Synchronous context (webhooks, server setup) => Dùng cho Oauth
 + prisma.server.js = Dynamic context (app routes, lazy loading) => Tương tác dữ liệu trong app
+
+## Các tính năng mới của phiên bản update
++ Tối ưu lại cấu trúc code dễ maintain và bảo trì
++ Thêm các tính năng mới: Config theo special price rule/ New Arrival rule
++ Tính năng chọn nhiều sản phẩm khi config/ search sản phẩm khi config
