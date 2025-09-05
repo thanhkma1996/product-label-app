@@ -4,7 +4,7 @@
   // Configuration - Multiple endpoints for fallback
   const API_ENDPOINTS = [
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
-    "https://hungarian-laos-tourist-proposals.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
+    "https://win-african-ink-sport.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
 
   const LABEL_STYLES = {

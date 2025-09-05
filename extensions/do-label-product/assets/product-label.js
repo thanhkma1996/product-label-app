@@ -4,7 +4,7 @@
   // Configuration - Multiple endpoints for fallback
   const API_ENDPOINTS = [
     "/apps/doproductlabel/labels", // App Proxy (works when no password protection)
-    "https://hungarian-laos-tourist-proposals.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
+    "https://win-african-ink-sport.trycloudflare.com/apps/doproductlabel/labels", // Direct API (bypasses password protection)
   ];
 
   const LABEL_STYLES = {
@@ -80,6 +80,99 @@
 
     console.warn("DO Label: No product ID or handle found");
     return null;
+  }
+
+  function getCurrentVariantId() {
+    // Try to get current variant ID from various sources
+    let variantId = null;
+
+    // Method 1: Look for variant ID in form inputs
+    const variantInputs = [
+      'input[name="id"]',
+      'input[name="variant-id"]',
+      'input[name="variant_id"]',
+      'input[name="product-variant-id"]',
+      'input[name="product_variant_id"]',
+    ];
+
+    for (const selector of variantInputs) {
+      const input = document.querySelector(selector);
+      if (input && input.value) {
+        variantId = input.value;
+        console.log(`DO Label Product: Found variant ID with selector "${selector}":`, variantId);
+        break;
+      }
+    }
+
+    // Method 2: Look for variant ID in data attributes
+    if (!variantId) {
+      const variantSelectors = [
+        '[data-variant-id]',
+        '[data-product-variant-id]',
+        '[data-selected-variant-id]',
+        '[data-current-variant-id]',
+      ];
+
+      for (const selector of variantSelectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+          const value = element.getAttribute(selector.replace(/[[\]]/g, '')) || 
+                      element.getAttribute('data-variant-id') ||
+                      element.getAttribute('data-product-variant-id') ||
+                      element.getAttribute('data-selected-variant-id') ||
+                      element.getAttribute('data-current-variant-id');
+          if (value) {
+            variantId = value;
+            console.log(`DO Label Product: Found variant ID with selector "${selector}":`, variantId);
+            break;
+          }
+        }
+      }
+    }
+
+    // Method 3: Look for variant ID in Shopify global objects
+    if (!variantId && typeof window !== "undefined" && window.Shopify) {
+      // Check Shopify.analytics.meta.product
+      if (window.Shopify.analytics && window.Shopify.analytics.meta && window.Shopify.analytics.meta.product) {
+        const productData = window.Shopify.analytics.meta.product;
+        if (productData.variant_id) {
+          variantId = productData.variant_id.toString();
+          console.log("DO Label Product: Found variant ID in Shopify.analytics.meta.product:", variantId);
+        }
+      }
+
+      // Check window.meta.product
+      if (!variantId && window.meta && window.meta.product) {
+        const productData = window.meta.product;
+        if (productData.variant_id) {
+          variantId = productData.variant_id.toString();
+          console.log("DO Label Product: Found variant ID in window.meta.product:", variantId);
+        }
+      }
+    }
+
+    // Method 4: Look for variant ID in JSON script tags
+    if (!variantId) {
+      const scriptTags = document.querySelectorAll('script[type="application/json"]');
+      for (const script of scriptTags) {
+        try {
+          const data = JSON.parse(script.textContent);
+          if (data && data.product && data.product.selected_or_first_available_variant) {
+            const variant = data.product.selected_or_first_available_variant;
+            if (variant && variant.id) {
+              variantId = variant.id.toString();
+              console.log("DO Label Product: Found variant ID in JSON script tag:", variantId);
+              break;
+            }
+          }
+        } catch (error) {
+          // Continue to next script
+        }
+      }
+    }
+
+    console.log("DO Label Product: Final variant ID:", variantId);
+    return variantId;
   }
 
   // Get product creation date from various DOM sources
@@ -375,6 +468,9 @@
       "[data-product]",
       "[data-product-id]",
       ".product-form",
+      ".product__wrapper",
+      ".product__main",
+      ".product__inner",
     ];
 
     let searchElements = [];
@@ -435,7 +531,10 @@
         if (
           (text.includes("was") ||
             text.includes("compare") ||
-            text.includes("original")) &&
+            text.includes("original") ||
+            text.includes("regular") ||
+            text.includes("list price") ||
+            text.includes("msrp")) &&
           /\d+/.test(text) &&
           el.children.length === 0
         ) {
@@ -473,7 +572,9 @@
               fontSize < parentFontSize ||
               color.includes("128") || // Gray colors often have 128 in RGB
               color.includes("gray") ||
-              color.includes("grey")
+              color.includes("grey") ||
+              color.includes("999") || // Common gray color values
+              color.includes("666")
             ) {
               console.log(
                 "DO Label Product: Found smaller/grayed price element:",
@@ -494,6 +595,101 @@
       }
     }
 
+    // Method 4: Look for multiple price elements and find the higher one (likely compare price)
+    for (const container of searchElements) {
+      const priceElements = container.querySelectorAll("*");
+      const priceTexts = [];
+      
+      for (const el of priceElements) {
+        const text = (el.textContent || "").trim();
+        if (text && /\d+/.test(text) && el.children.length === 0) {
+          // Extract numeric value
+          const priceMatch = text.match(/[\d,]+\.?\d*/);
+          if (priceMatch) {
+            const priceValue = parseFloat(priceMatch[0].replace(/,/g, ""));
+            if (!isNaN(priceValue) && priceValue > 0) {
+              priceTexts.push({
+                element: el,
+                text: text,
+                value: priceValue,
+                className: el.className,
+                tagName: el.tagName,
+              });
+            }
+          }
+        }
+      }
+
+      // If we found multiple prices, the higher one is likely the compare price
+      if (priceTexts.length >= 2) {
+        priceTexts.sort((a, b) => b.value - a.value);
+        const highestPrice = priceTexts[0];
+        const secondHighest = priceTexts[1];
+        
+        // Only consider it a compare price if there's a significant difference
+        if (highestPrice.value > secondHighest.value * 1.1) { // 10% higher
+          console.log(
+            "DO Label Product: Found potential compare price (highest of multiple prices):",
+            {
+              element: highestPrice.element,
+              text: highestPrice.text,
+              value: highestPrice.value,
+              secondHighest: secondHighest.value,
+              className: highestPrice.className,
+              tagName: highestPrice.tagName,
+            },
+          );
+          return { element: highestPrice.element, text: highestPrice.text };
+        }
+      }
+    }
+
+    // Method 5: Try to get compare price from Shopify global objects
+    if (typeof window !== "undefined" && window.Shopify) {
+      console.log("DO Label Product: Checking Shopify global objects for compare price");
+      
+      // Check Shopify.analytics.meta.product
+      if (window.Shopify.analytics && window.Shopify.analytics.meta && window.Shopify.analytics.meta.product) {
+        const productData = window.Shopify.analytics.meta.product;
+        if (productData.compare_at_price && productData.compare_at_price > 0) {
+          console.log(
+            "DO Label Product: Found compare price in Shopify.analytics.meta.product:",
+            productData.compare_at_price,
+          );
+          return { element: null, text: productData.compare_at_price.toString() };
+        }
+      }
+
+      // Check window.meta.product
+      if (window.meta && window.meta.product) {
+        const productData = window.meta.product;
+        if (productData.compare_at_price && productData.compare_at_price > 0) {
+          console.log(
+            "DO Label Product: Found compare price in window.meta.product:",
+            productData.compare_at_price,
+          );
+          return { element: null, text: productData.compare_at_price.toString() };
+        }
+      }
+
+      // Check for product data in script tags
+      const scriptTags = document.querySelectorAll('script[type="application/json"]');
+      for (const script of scriptTags) {
+        try {
+          const data = JSON.parse(script.textContent);
+          if (data && data.product && data.product.compare_at_price && data.product.compare_at_price > 0) {
+            console.log(
+              "DO Label Product: Found compare price in JSON script tag:",
+              data.product.compare_at_price,
+            );
+            return { element: null, text: data.product.compare_at_price.toString() };
+          }
+        } catch (error) {
+          // Continue to next script
+        }
+      }
+    }
+
     return null;
   }
 
@@ -510,15 +706,28 @@
       product.id,
     );
 
+    // Get current variant ID if available
+    product.variantId = getCurrentVariantId();
+    console.log(
+      "DO Label Product: getCurrentProduct - variant ID:",
+      product.variantId,
+    );
+
     // Enhanced compare at price detection with more comprehensive selectors
     const comparePriceSelectors = [
-      // Data attributes
+      // Data attributes (highest priority)
       "[data-compare-price]",
       "[data-product-compare-price]",
       "[data-original-price]",
       "[data-was-price]",
       "[data-old-price]",
       "[data-price-compare]",
+      "[data-product-compare-at-price]",
+      "[data-variant-compare-at-price]",
+      "[data-compare-at-price]",
+      "[data-sale-price]",
+      "[data-regular-price]",
+      ".price-item--regular",
       // Class-based selectors
       ".price__compare",
       ".product__price--compare",
@@ -553,9 +762,6 @@
       ".product-price .original",
       ".product-price .was",
       ".product-price .old",
-      // Shopify Liquid variables (if available in DOM)
-      "[data-product-compare-at-price]",
-      "[data-variant-compare-at-price]",
       // Additional fallback selectors
       ".price-item--compare",
       ".price-item--original",
@@ -565,6 +771,24 @@
       ".product__price-item--original",
       ".product__price-item--was",
       ".product__price-item--old",
+      // More specific product detail selectors
+      ".product__price .price__compare",
+      ".product-single__price .price__compare",
+      ".product__details .price__compare",
+      ".product__info .price__compare",
+      ".product-form .price__compare",
+      // Shopify 2.0 theme selectors
+      ".price .price-item--sale",
+      ".price .price-item--regular",
+      ".product__price .price-item--sale",
+      ".product__price .price-item--regular",
+      // Additional common selectors
+      ".sale-price",
+      ".regular-price",
+      ".compare-at-price",
+      ".product__sale-price",
+      ".product__regular-price",
+      ".product__compare-at-price",
     ];
 
     let compareAtPriceElement = null;
@@ -572,29 +796,82 @@
 
     // Try each selector and log which one is found
     console.log("DO Label Product: Checking all compare price selectors:");
-    for (const selector of comparePriceSelectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        console.log(
-          `DO Label Product: Found compare price element with selector "${selector}":`,
-          {
-            element: element,
-            tagName: element.tagName,
-            className: element.className,
-            textContent: element.textContent,
-            innerText: element.innerText,
-            dataComparePrice: element.getAttribute("data-compare-price"),
-            dataProductComparePrice: element.getAttribute(
-              "data-product-compare-price",
-            ),
-            dataOriginalPrice: element.getAttribute("data-original-price"),
-            dataWasPrice: element.getAttribute("data-was-price"),
-            dataOldPrice: element.getAttribute("data-old-price"),
-          },
-        );
-        if (!compareAtPriceElement) {
+    
+    // First, try to find variant-specific compare price elements
+    if (product.variantId) {
+      console.log(`DO Label Product: Looking for variant-specific compare price for variant ${product.variantId}`);
+      
+      // Look for variant-specific selectors first
+      const variantSpecificSelectors = [
+        `[data-variant-compare-at-price="${product.variantId}"]`,
+        `[data-variant-compare-price="${product.variantId}"]`,
+        `[data-variant-id="${product.variantId}"] [data-compare-price]`,
+        `[data-variant-id="${product.variantId}"] [data-compare-at-price]`,
+        `[data-selected-variant-id="${product.variantId}"] [data-compare-price]`,
+        `[data-current-variant-id="${product.variantId}"] [data-compare-price]`,
+      ];
+      
+      for (const selector of variantSpecificSelectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+          console.log(
+            `DO Label Product: Found variant-specific compare price element with selector "${selector}":`,
+            {
+              element: element,
+              tagName: element.tagName,
+              className: element.className,
+              textContent: element.textContent,
+              innerText: element.innerText,
+              variantId: product.variantId,
+            },
+          );
           compareAtPriceElement = element;
           selectedSelector = selector;
+          break;
+        }
+      }
+    }
+    
+    // If no variant-specific element found, try general selectors
+    if (!compareAtPriceElement) {
+      for (const selector of comparePriceSelectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+          console.log(
+            `DO Label Product: Found compare price element with selector "${selector}":`,
+            {
+              element: element,
+              tagName: element.tagName,
+              className: element.className,
+              textContent: element.textContent,
+              innerText: element.innerText,
+              dataComparePrice: element.getAttribute("data-compare-price"),
+              dataProductComparePrice: element.getAttribute(
+                "data-product-compare-price",
+              ),
+              dataOriginalPrice: element.getAttribute("data-original-price"),
+              dataWasPrice: element.getAttribute("data-was-price"),
+              dataOldPrice: element.getAttribute("data-old-price"),
+              dataCompareAtPrice: element.getAttribute("data-compare-at-price"),
+              dataVariantCompareAtPrice: element.getAttribute("data-variant-compare-at-price"),
+              dataSalePrice: element.getAttribute("data-sale-price"),
+              dataRegularPrice: element.getAttribute("data-regular-price"),
+              computedStyle: {
+                display: getComputedStyle(element).display,
+                visibility: getComputedStyle(element).visibility,
+                opacity: getComputedStyle(element).opacity,
+                textDecoration: getComputedStyle(element).textDecoration,
+              },
+            },
+          );
+          if (!compareAtPriceElement) {
+            compareAtPriceElement = element;
+            selectedSelector = selector;
+          }
+        } else {
+          console.log(
+            `DO Label Product: No element found with selector "${selector}"`,
+          );
         }
       }
     }
@@ -614,6 +891,10 @@
         compareAtPriceElement.getAttribute("data-original-price") ||
         compareAtPriceElement.getAttribute("data-was-price") ||
         compareAtPriceElement.getAttribute("data-old-price") ||
+        compareAtPriceElement.getAttribute("data-compare-at-price") ||
+        compareAtPriceElement.getAttribute("data-variant-compare-at-price") ||
+        compareAtPriceElement.getAttribute("data-sale-price") ||
+        compareAtPriceElement.getAttribute("data-regular-price") ||
         "";
 
       console.log(
@@ -1739,6 +2020,16 @@
     })();
   }
 
+  // Function to re-inject labels when variant changes
+  function reInjectLabelsOnVariantChange() {
+    console.log("DO Label Product: Variant change detected, re-injecting labels");
+    
+    // Small delay to allow DOM to update
+    setTimeout(() => {
+      initProductLabels();
+    }, 100);
+  }
+
   // Run when DOM is ready
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initProductLabels);
@@ -1749,5 +2040,76 @@
   // Also run on page changes (for SPA themes)
   if (typeof window !== "undefined" && window.Shopify && window.Shopify.on) {
     window.Shopify.on("section:load", initProductLabels);
+  }
+
+  // Listen for variant changes
+  function setupVariantChangeListeners() {
+    console.log("DO Label Product: Setting up variant change listeners");
+
+    // Listen for form changes (variant selectors)
+    const variantSelectors = [
+      'select[name="id"]',
+      'select[name="variant-id"]',
+      'select[name="variant_id"]',
+      'input[name="id"]',
+      'input[name="variant-id"]',
+      'input[name="variant_id"]',
+      '.variant-selector',
+      '.product-variant-selector',
+      '[data-variant-selector]',
+    ];
+
+    variantSelectors.forEach(selector => {
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(element => {
+        element.addEventListener('change', reInjectLabelsOnVariantChange);
+        console.log(`DO Label Product: Added change listener to ${selector}`);
+      });
+    });
+
+    // Listen for click events on variant options
+    const variantOptions = [
+      '.variant-option',
+      '.product-variant-option',
+      '[data-variant-option]',
+      '.size-option',
+      '.color-option',
+      '.option-value',
+    ];
+
+    variantOptions.forEach(selector => {
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(element => {
+        element.addEventListener('click', reInjectLabelsOnVariantChange);
+        console.log(`DO Label Product: Added click listener to ${selector}`);
+      });
+    });
+
+    // Listen for custom variant change events
+    document.addEventListener('variant:change', reInjectLabelsOnVariantChange);
+    document.addEventListener('product:variant-change', reInjectLabelsOnVariantChange);
+    document.addEventListener('variantChange', reInjectLabelsOnVariantChange);
+    document.addEventListener('productVariantChange', reInjectLabelsOnVariantChange);
+
+    // Listen for URL changes (for some themes that use URL parameters)
+    let lastUrl = window.location.href;
+    const urlChangeObserver = new MutationObserver(() => {
+      const currentUrl = window.location.href;
+      if (currentUrl !== lastUrl) {
+        lastUrl = currentUrl;
+        console.log("DO Label Product: URL changed, checking for variant change");
+        reInjectLabelsOnVariantChange();
+      }
+    });
+    urlChangeObserver.observe(document, { subtree: true, childList: true });
+
+    console.log("DO Label Product: Variant change listeners setup complete");
+  }
+
+  // Setup variant change listeners when DOM is ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", setupVariantChangeListeners);
+  } else {
+    setupVariantChangeListeners();
   }
 })();

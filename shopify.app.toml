@@ -3,7 +3,7 @@
 client_id = "d090f486b6ac47969dca38d6140e1e96"
 name = "DO Product Label"
 handle = "do-product-label"
-application_url = "https://hungarian-laos-tourist-proposals.trycloudflare.com"
+application_url = "https://win-african-ink-sport.trycloudflare.com"
 embedded = true
 
 [webhooks]
@@ -22,7 +22,7 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://hungarian-laos-tourist-proposals.trycloudflare.com/auth/callback", "https://hungarian-laos-tourist-proposals.trycloudflare.com/auth/shopify/callback", "https://hungarian-laos-tourist-proposals.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://win-african-ink-sport.trycloudflare.com/auth/callback", "https://win-african-ink-sport.trycloudflare.com/auth/shopify/callback", "https://win-african-ink-sport.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
@@ -33,6 +33,6 @@ include_config_on_deploy = true
 dev_store_url = "staging-digitaloutlook.myshopify.com"
 
 [app_proxy]
-url = "https://hungarian-laos-tourist-proposals.trycloudflare.com"
+url = "https://win-african-ink-sport.trycloudflare.com"
 prefix = "apps"
 subpath = "doproductlabel"
